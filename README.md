@@ -3,7 +3,7 @@
 This repository builds the one documentation site of Phoebis Router, Phoebis Companion and Phoebis Proxy. It holds the
 site's configuration, its scripts, its start page, its theme and its workflows. The pages of a product stay in that
 product's repository, and each build copies them into one tree. The site is published at
-<https://phoebis-project.github.io/phoebis-docs/> once GitHub Pages is enabled for this repository.
+<https://phoebis-project.github.io/phoebis-docs/>.
 
 ## What a product repository holds
 
