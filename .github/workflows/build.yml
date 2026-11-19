@@ -95,6 +95,10 @@ jobs:
         working-directory: build
       - run: python3 scripts/check-site.py links
       - run: python3 scripts/check-site.py prose build/docs README.md checkouts/router/README.md checkouts/companion/README.md checkouts/proxy/README.md
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      # A run's artifact is open to each reader of the run's repository, and the site holds the pages of each product.
+      # So the upload runs under the condition of deploy.yml's deploy job, the one job that reads the artifact. The
+      # repository is named since a called workflow reads the caller's variables.
+      - if: vars.DOCS_PAGES == '1' && github.ref == 'refs/heads/main' && github.repository == 'phoebis-project/phoebis-docs'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/site
