@@ -81,6 +81,7 @@ jobs:
           python-version: "3.x"
       - run: scripts/tests/assemble.sh
       - run: scripts/tests/check-site.sh
+      - run: scripts/tests/preview.sh
       - run: python3 scripts/assemble.py --checkout router=checkouts/router --checkout companion=checkouts/companion --checkout proxy=checkouts/proxy
       # Pinned to the version the site is written and checked against. A newer Zensical may warn on syntax this one
       # accepts, and a warning fails the build below.
