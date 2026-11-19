@@ -37,6 +37,11 @@ jobs:
         run: |
           echo "the ref input is empty, and a product's build needs the caller's commit"
           exit 1
+      # And so would a caller that names a commit and no product, since no checkout below reads a ref without one.
+      - if: inputs.product == '' && inputs.ref != ''
+        run: |
+          echo "the product input is empty, and the ref input names a product's commit"
+          exit 1
       - id: app
         if: env.DOCS_CREDENTIAL == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
