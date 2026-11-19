@@ -15,7 +15,8 @@ import tomllib
 import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SITE = ROOT / "build" / "site"
+BUILD = ROOT / "build"
+SITE = BUILD / "site"
 
 # Another host's links are not this script's business.
 SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
@@ -37,7 +38,8 @@ def site_prefix(config: pathlib.Path) -> list[str] | None:
 
 
 class Links(html.parser.HTMLParser):
-    """The hrefs and srcs a page carries, and the ids the site build gave its headings and anchors."""
+    """The hrefs and srcs a page carries, without another host's links, and the ids the site build gave its headings
+    and anchors."""
 
     def __init__(self):
         super().__init__()
@@ -49,28 +51,28 @@ class Links(html.parser.HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
-            if name in ("href", "src") and value:
+            if name in ("href", "src") and value and not value.startswith(SKIPPED):
                 self.found.append(value)
-            if name == "href" and value:
-                self.hrefs.append(value)
+                if name == "href":
+                    self.hrefs.append(value)
             if name == "id" and value:
                 self.ids.add(value)
 
 
 @functools.cache
-def ids_of(page):
+def parsed(page):
     parser = Links()
     parser.feed(page.read_text(encoding="utf-8"))
-    return parser.ids
+    return parser
 
 
 def target_of(site, prefix, page, raw):
     """The file a link lands on, a directory read as its `index.html` and a link without a path as `page`
-    itself, or None when the link resolves to nothing."""
+    itself, or None when the link resolves to nothing. `site` arrives resolved, since the containment test reads it
+    against a resolved target."""
     path = urllib.parse.unquote(urllib.parse.urlsplit(raw).path)
     if not path:
         return page
-    site = site.resolve()
     if path.startswith("/"):
         # A root-relative link must carry the prefix site_url publishes this site under. A browser resolves
         # it against the host root, not against site/, so a link missing the prefix is dangling regardless
@@ -78,18 +80,16 @@ def target_of(site, prefix, page, raw):
         parts = path.lstrip("/").split("/")
         if parts[: len(prefix)] != prefix:
             return None
-        remainder = "/".join(parts[len(prefix) :])
-        candidates = [site / remainder] if remainder else [site]
+        target = site / "/".join(parts[len(prefix) :])
     else:
-        candidates = [page.parent / path]
-    for target in candidates:
-        target = target.resolve()
-        if not target.is_relative_to(site):
-            continue
-        if target.is_file():
-            return target
-        if target.is_dir() and (target / "index.html").is_file():
-            return target / "index.html"
+        target = page.parent / path
+    target = target.resolve()
+    if not target.is_relative_to(site):
+        return None
+    if target.is_file():
+        return target
+    if target.is_dir() and (target / "index.html").is_file():
+        return target / "index.html"
     return None
 
 
@@ -107,7 +107,7 @@ def fragment_missing_from(site, prefix, page, raw):
     # A link that lands nowhere is the path check's finding, and an image or a file other than a page has no ids.
     if target is None or target.suffix != ".html":
         return None
-    return None if fragment in ids_of(target) else target
+    return None if fragment in parsed(target).ids else target
 
 
 def check_links(site, prefix):
@@ -119,17 +119,12 @@ def check_links(site, prefix):
         return 1
     dangling = 0
     for page in pages:
-        parser = Links()
-        parser.feed(page.read_text(encoding="utf-8"))
+        parser = parsed(page)
         for raw in parser.found:
-            if raw.startswith(SKIPPED):
-                continue
             if not resolves(site, prefix, page, raw):
                 print(f"{page.relative_to(site)}: {raw} resolves to nothing")
                 dangling += 1
         for raw in parser.hrefs:
-            if raw.startswith(SKIPPED):
-                continue
             target = fragment_missing_from(site, prefix, page, raw)
             if target is not None:
                 print(f"{page.relative_to(site)}: {raw} names no heading or anchor in {target.relative_to(site)}")
@@ -156,7 +151,7 @@ def prose_files(paths: list[pathlib.Path]) -> list[pathlib.Path]:
     """Each file as it is given and each folder as its `*.md` files at each depth, sorted. With no path: the pages of
     the build tree and the repository's README."""
     files: list[pathlib.Path] = []
-    for path in paths or [ROOT / "build" / "docs", ROOT / "README.md"]:
+    for path in paths or [BUILD / "docs", ROOT / "README.md"]:
         files += sorted(path.rglob("*.md")) if path.is_dir() else [path]
     return files
 
@@ -176,18 +171,18 @@ def check_prose(files):
         fence, spanned = None, False
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             marker = FENCE.match(line)
-            if fence is None and (marker or not line.strip()):
-                # A code span never crosses a paragraph, so a backtick left open ends at a blank line or a fence.
-                spanned = False
-            if fence is None and marker:
-                fence = marker.group(1)
-                continue
             if fence is not None:
                 # A shorter fence line, or one with an info string (a three-backtick `sh` line inside a three- or
                 # four-backtick block), is content, not the close.
                 run = marker.group(1) if marker else None
                 if run and line.strip() == run and run[0] == fence[0] and len(run) >= len(fence):
                     fence = None
+                continue
+            if marker or not line.strip():
+                # A code span never crosses a paragraph, so a backtick left open ends at a blank line or a fence.
+                spanned = False
+            if marker:
+                fence = marker.group(1)
                 continue
             if len(line) > 120 and not line.lstrip().startswith("|"):
                 print(f"{shown}:{number}: columns: {len(line)}")

@@ -20,6 +20,13 @@ import tomllib
 import typing
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+BUILD = ROOT / "build"
+# The layout the assembly reads: the repository's two trees, and a product's nav and pages below its checkout.
+TREES = ("docs", "overrides")
+PRODUCT_NAV = "docs/nav.toml"
+PRODUCT_SITE = "docs/site"
+# The merged nav starts from the site's own nav, and the assembly refuses a page of docs/ that this nav leaves out.
+SITE_NAV: list[dict[str, str | list]] = [{"Home": "index.md"}]
 USAGE = "assemble.py --checkout FOLDER=PATH [--checkout FOLDER=PATH ...] [--out DIR]"
 THIS = "this repository"
 
@@ -43,6 +50,14 @@ def checkout_pair(value: str) -> tuple[str, pathlib.Path]:
     if not sep or not folder or not path:
         raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=PATH")
     return folder, pathlib.Path(path)
+
+
+def checkout_parser(prog: str, usage: str, doc: str | None, **checkout) -> argparse.ArgumentParser:
+    """A command's parser with its `--checkout` option, which takes the command's own help and default."""
+    # `python -OO` strips the docstring, and the help then goes without a description.
+    parser = argparse.ArgumentParser(prog=prog, usage=usage, description=doc.splitlines()[0] if doc else None)
+    parser.add_argument("--checkout", action="append", type=checkout_pair, metavar="FOLDER=PATH", **checkout)
+    return parser
 
 
 MARKER = ".phoebis-docs-build"
@@ -131,7 +146,7 @@ def leaves(path: str) -> bool:
 def read_site(root: pathlib.Path, sources: list[Source], problems: list[str]) -> dict[str, list[str]]:
     """The files of the repository's own `docs/` and `overrides/`, with each problem of the two trees in `problems`."""
     trees = {}
-    for name in ("docs", "overrides"):
+    for name in TREES:
         top = root / name
         if top.is_symlink():
             problems.append(linked(THIS, name))
@@ -140,10 +155,11 @@ def read_site(root: pathlib.Path, sources: list[Source], problems: list[str]) ->
         files, links = walk(top)
         problems += [linked(THIS, f"{name}/{link}") for link in links]
         trees[name] = files
+    named = nav_paths(SITE_NAV)
     problems += [
         f"{THIS}: docs/{page} is in no nav entry, and the site's own nav names index.md alone"
         for page in trees["docs"]
-        if page.endswith(".md") and page != "index.md"
+        if page.endswith(".md") and page not in named
     ]
     problems += [
         f"sources.toml: the folder {source.folder} is taken by docs/{source.folder} of this repository"
@@ -156,8 +172,8 @@ def read_site(root: pathlib.Path, sources: list[Source], problems: list[str]) ->
 def read_product(source: Source, checkout: pathlib.Path, problems: list[str]) -> tuple[list, list[str]]:
     """The product's nav and the files under its `docs/site/`, with each problem of the checkout in `problems`."""
     repository = source.repository
-    nav_file = checkout / "docs/nav.toml"
-    site = checkout / "docs/site"
+    nav_file = checkout / PRODUCT_NAV
+    site = checkout / PRODUCT_SITE
     nav, paths, files = [], None, []
     # The checkout's own path is the caller's choice and may be a link. Below it, each root takes a test of its own,
     # since a linked docs/ would carry the nav and the pages in from wherever it points.
@@ -194,6 +210,14 @@ def read_product(source: Source, checkout: pathlib.Path, problems: list[str]) ->
         if page.endswith(".md") and page not in named
     ]
     return nav, files
+
+
+def source_roots(root: pathlib.Path, checkouts: dict[str, pathlib.Path]) -> list[pathlib.Path]:
+    """Each file and folder the assembly reads, for a caller that looks at them for a change."""
+    roots = [root / name for name in TREES] + [root / "sources.toml", root / "zensical.toml"]
+    for checkout in checkouts.values():
+        roots += [checkout / PRODUCT_NAV, checkout / PRODUCT_SITE]
+    return roots
 
 
 def prefixed(nav: list, folder: str) -> list:
@@ -275,16 +299,15 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
         if source.folder not in checkouts
     ]
     site = read_site(root, sources, problems)
-    keep = {f"docs/{path}": root / "docs" / path for path in site["docs"]}
-    keep |= {f"overrides/{path}": root / "overrides" / path for path in site["overrides"]}
-    nav: list[dict[str, str | list]] = [{"Home": "index.md"}]
+    keep = {f"{name}/{path}": root / name / path for name, files in site.items() for path in files}
+    nav: list[dict[str, str | list]] = [*SITE_NAV]
     for source in sources:
         checkout = checkouts.get(source.folder)
         if checkout is None:
             continue
         product_nav, files = read_product(source, checkout, problems)
         nav.append({source.title: prefixed(product_nav, source.folder)})
-        keep |= {f"docs/{source.folder}/{path}": checkout / "docs/site" / path for path in files}
+        keep |= {f"docs/{source.folder}/{path}": checkout / PRODUCT_SITE / path for path in files}
     lines = (root / "zensical.toml").read_text(encoding="utf-8").splitlines(keepends=True)
     project = next((index for index, line in enumerate(lines) if line.strip() == "[project]"), None)
     if project is None:
@@ -302,7 +325,7 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
     out.mkdir(parents=True, exist_ok=True)
     if not (out / MARKER).exists():
         (out / MARKER).write_text(MARKER_TEXT, encoding="utf-8")
-    for name in ("docs", "overrides"):
+    for name in TREES:
         prune(out, name, keep)
     for path, source_file in sorted(keep.items()):
         write(out / path, source_file.read_bytes())
@@ -311,19 +334,11 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
 
 
 def main(argv: list[str]) -> int:
-    # `python -OO` strips the docstring, and the help then goes without a description.
-    description = __doc__.splitlines()[0] if __doc__ else None
-    parser = argparse.ArgumentParser(prog="assemble.py", usage=USAGE, description=description)
-    parser.add_argument(
-        "--checkout",
-        action="append",
-        required=True,
-        type=checkout_pair,
-        metavar="FOLDER=PATH",
-        help="a product's checkout, one per folder of sources.toml",
+    parser = checkout_parser(
+        "assemble.py", USAGE, __doc__, required=True, help="a product's checkout, one per folder of sources.toml"
     )
     parser.add_argument(
-        "--out", type=pathlib.Path, default=ROOT / "build", metavar="DIR", help="the build tree, build/ by default"
+        "--out", type=pathlib.Path, default=BUILD, metavar="DIR", help="the build tree, build/ by default"
     )
     args = parser.parse_args(argv)
     problems = assemble(ROOT, dict(args.checkout), args.out)

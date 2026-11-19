@@ -10,7 +10,6 @@ A checkout's path comes from a `--checkout FOLDER=PATH` flag or from `checkouts.
 git ignores that holds one key per folder. A flag wins over the file, and a relative path in the file is read from the
 file's folder. Each argument behind `--` goes to `zensical serve`.
 """
-import argparse
 import pathlib
 import signal
 import stat
@@ -19,7 +18,7 @@ import sys
 import time
 import tomllib
 
-from assemble import ROOT, assemble, checkout_pair, read_sources
+from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, source_roots
 
 USAGE = "preview.py [--checkout FOLDER=PATH ...] [-- ZENSICAL_SERVE_ARG ...]"
 ZENSICAL = "zensical==0.0.62"
@@ -40,13 +39,10 @@ def local_checkouts(root: pathlib.Path, flags: list[tuple[str, pathlib.Path]]) -
 
 
 def snapshot(root: pathlib.Path, checkouts: dict[str, pathlib.Path]) -> dict[pathlib.Path, tuple[int, int]]:
-    """Each source file with its size and its modification time: the repository's docs/, overrides/, zensical.toml
-    and sources.toml, and each checkout's docs/site/ and docs/nav.toml. The walk is fresh at each call, so a file
-    added since the last look is in it."""
+    """Each source file with its size and its modification time, at each depth of each root that `source_roots` of
+    the assembly names. The walk is fresh at each call, so a file added since the last look is in it."""
     files = {}
-    pending = [root / "docs", root / "overrides", root / "sources.toml", root / "zensical.toml"]
-    for checkout in checkouts.values():
-        pending += [checkout / "docs" / "nav.toml", checkout / "docs" / "site"]
+    pending = source_roots(root, checkouts)
     while pending:
         path = pending.pop()
         try:
@@ -122,21 +118,17 @@ def serve(
 
 
 def main(argv: list[str]) -> int:
-    # `python -OO` strips the docstring, and the help then goes without a description.
-    description = __doc__.splitlines()[0] if __doc__ else None
-    parser = argparse.ArgumentParser(prog="preview.py", usage=USAGE, description=description)
-    parser.add_argument(
-        "--checkout",
-        action="append",
+    parser = checkout_parser(
+        "preview.py",
+        USAGE,
+        __doc__,
         default=[],
-        type=checkout_pair,
-        metavar="FOLDER=PATH",
         help="a product's checkout, which wins over the folder's key in checkouts.toml",
     )
     # argparse would read an option of `zensical serve` as one of its own, so it never sees what stands behind `--`.
     cut = argv.index("--") if "--" in argv else len(argv)
     args = parser.parse_args(argv[:cut])
-    out = ROOT / "build"
+    out = BUILD
     try:
         checkouts = local_checkouts(ROOT, args.checkout)
     except UNREAD as error:
