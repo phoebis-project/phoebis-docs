@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The preview has to read a checkout's path the way the README states it: a flag wins over checkouts.toml, and a
-# relative path in that file is read from the file's folder. A run with three flags from the repository's root shows
-# neither. The script finds its repository from its own path, so each case imports a copy of it inside a throwaway
-# repository and calls the function that reads the paths, which starts no server.
+# relative path in that file is read from the file's folder. It also has to see an edit at each depth of a checkout's
+# pages. A run with three flags from the repository's root that edits a page at the top level shows none of the
+# three. The script finds its repository from its own path, so each case imports a copy of it inside a throwaway
+# repository and calls one of its functions, which starts no server.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")/../.." && pwd)
@@ -51,5 +52,24 @@ if checkouts["alpha"].resolve() != pathlib.Path(sys.argv[1], "alpha").resolve():
     sys.exit(1)
 PY
 ) || fail "${why:-the call of local_checkouts ended with a traceback}"
+
+# A look that stops at the top level of a checkout's docs/site/ misses an edit of a page or an image one folder down,
+# so the preview runs no assembly for it and the browser keeps the old page.
+repository "$tmp/nested/repo"
+mkdir -p "$tmp/nested/alpha/docs/site/guide"
+echo '# Page' > "$tmp/nested/alpha/docs/site/guide/page.md"
+why=$(python3 - "$tmp/nested" <<'PY'
+import pathlib
+import sys
+
+sys.path.insert(0, f"{sys.argv[1]}/repo/scripts")
+import preview
+
+alpha = pathlib.Path(sys.argv[1], "alpha")
+if alpha / "docs/site/guide/page.md" not in preview.snapshot(preview.ROOT, {"alpha": alpha}):
+    print("docs/site/guide/page.md of a checkout is in no look at the sources")
+    sys.exit(1)
+PY
+) || fail "${why:-the call of snapshot ended with a traceback}"
 
 echo "preview: ok"
