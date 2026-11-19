@@ -11,3 +11,5 @@ part of its own.
   installs and configures the mod on a client machine.
 - [Phoebis Proxy](proxy/index.md) is a tunnel proxy that ends the tunnels of two claude.ai features, Artifacts and
   the connectors, at the router. Its part is for the operator who wants those two features behind the router.
+
+<!-- This line exists to run the documentation build on a pull request. -->
