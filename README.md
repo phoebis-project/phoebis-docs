@@ -85,6 +85,10 @@ writing rules, which apply to the pages of each product: no bare `api_key` outsi
 en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a prose line, and no word from
 its list of words a reference page does not use. With a path, `prose` reads that file or walks that folder.
 
+A second build tree, such as one for a strict build while the preview serves `build/`, comes from two arguments:
+`scripts/assemble.py --out DIR` writes into that directory under the same rule as `build/`, and `scripts/check-site.py
+links DIR/site` reads the site built there.
+
 ## Links between products
 
 A page links to a page of another product with a relative path through the built tree, such as
