@@ -1,0 +1,94 @@
+name: Build
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      product:
+        description: The caller's folder in sources.toml. Empty builds each product at main.
+        type: string
+        default: ""
+      ref:
+        description: The caller's commit, which its product is built at.
+        type: string
+        default: ""
+    secrets:
+      DOCS_APP_PRIVATE_KEY:
+        description: The private key of the GitHub App that reads the four repositories.
+        required: false
+permissions:
+  contents: read
+jobs:
+  site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # A step's condition cannot read a secret, so the job states once whether both halves of the credential are
+      # set. A pull request from a fork gets no secret and reads with the job's own token, which reads public
+      # repositories alone.
+      DOCS_CREDENTIAL: ${{ vars.DOCS_APP_CLIENT_ID != '' && secrets.DOCS_APP_PRIVATE_KEY != '' }}
+    steps:
+      # A caller that misnames its product would build each product at main and pass without its own change.
+      - if: inputs.product != '' && !contains(fromJSON('["companion", "proxy", "router"]'), inputs.product)
+        run: |
+          echo "the product input names no folder of sources.toml"
+          exit 1
+      # So would a caller that names its product and no commit, since an empty ref reads as main below.
+      - if: inputs.product != '' && inputs.ref == ''
+        run: |
+          echo "the ref input is empty, and a product's build needs the caller's commit"
+          exit 1
+      - id: app
+        if: env.DOCS_CREDENTIAL == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DOCS_APP_CLIENT_ID }}
+          owner: phoebis-project
+          permission-contents: read
+          private-key: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
+          repositories: phoebis,phoebis-companion,phoebis-docs,phoebis-proxy
+      # A called workflow runs in the caller's repository, so this checkout names its own. A pull request of this
+      # repository builds its own commit. Each other run builds main here: a product's call, and a deploy, whose
+      # second run would otherwise publish the pages of its first commit over newer ones.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.repository == 'phoebis-project/phoebis-docs' && github.event_name == 'pull_request' && github.sha || 'main' }}
+          repository: phoebis-project/phoebis-docs
+          token: ${{ steps.app.outputs.token || github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: checkouts/router
+          persist-credentials: false
+          ref: ${{ inputs.product == 'router' && inputs.ref || 'main' }}
+          repository: phoebis-project/phoebis
+          token: ${{ steps.app.outputs.token || github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: checkouts/companion
+          persist-credentials: false
+          ref: ${{ inputs.product == 'companion' && inputs.ref || 'main' }}
+          repository: phoebis-project/phoebis-companion
+          token: ${{ steps.app.outputs.token || github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: checkouts/proxy
+          persist-credentials: false
+          ref: ${{ inputs.product == 'proxy' && inputs.ref || 'main' }}
+          repository: phoebis-project/phoebis-proxy
+          token: ${{ steps.app.outputs.token || github.token }}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.x"
+      - run: scripts/tests/assemble.sh
+      - run: scripts/tests/check-site.sh
+      - run: python3 scripts/assemble.py --checkout router=checkouts/router --checkout companion=checkouts/companion --checkout proxy=checkouts/proxy
+      # Pinned to the version the site is written and checked against. A newer Zensical may warn on syntax this one
+      # accepts, and a warning fails the build below.
+      - run: pip install zensical==0.0.62
+      - run: zensical build --clean --strict
+        working-directory: build
+      - run: python3 scripts/check-site.py links
+      - run: python3 scripts/check-site.py prose build/docs README.md checkouts/router/README.md checkouts/companion/README.md checkouts/proxy/README.md
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/site

@@ -1,0 +1,37 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+# One deploy of a ref runs and one waits. A newer start replaces the one that waits, so the site ends at the newest
+# heads. The group carries the ref, so a manual start from another branch, which deploys nothing, cannot take the
+# place of a start from main that waits.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  site:
+    uses: ./.github/workflows/build.yml
+    secrets:
+      DOCS_APP_PRIVATE_KEY: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
+  deploy:
+    # Pages is the operator's switch: the job waits for a repository variable set after Pages is enabled, so a push
+    # to main stays green until then. The site is built from the four main heads, so a start from another branch
+    # deploys nothing. configure-pages lives here rather than in the build because it fails on a repository where
+    # Pages is not enabled.
+    if: vars.DOCS_PAGES == '1' && github.ref == 'refs/heads/main'
+    needs: site
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        id: deployment
