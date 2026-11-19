@@ -1,0 +1,7 @@
+{#- The theme draws one logo <img> and never recolors it, and its header is white under the default scheme and
+    near-black under slate, so each scheme gets the mark in its own palette. The two files are the router's, which
+    the assembly copies to router/assets/ with the router's pages. The theme's display rules for the logo image can
+    beat its per-scheme hiding of #only-* images (by source order in the header, by specificity in the drawer), so
+    assets/logo.css, whose selectors outrank both display rules, hides the other scheme's mark here. -#}
+<img src="{{ 'router/assets/phoebis-router-light.svg' | url }}#only-light" alt="{{ config.site_name }}">
+<img src="{{ 'router/assets/phoebis-router.svg' | url }}#only-dark" alt="{{ config.site_name }}">

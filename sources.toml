@@ -1,0 +1,15 @@
+# One entry per product, in the order of the tabs.
+[[source]]
+folder = "router"
+repository = "phoebis-project/phoebis"
+title = "Router"
+
+[[source]]
+folder = "companion"
+repository = "phoebis-project/phoebis-companion"
+title = "Companion"
+
+[[source]]
+folder = "proxy"
+repository = "phoebis-project/phoebis-proxy"
+title = "Proxy"

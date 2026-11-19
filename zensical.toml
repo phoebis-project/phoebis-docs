@@ -1,0 +1,68 @@
+[project]
+site_name = "Phoebis"
+site_url = "https://phoebis-project.github.io/phoebis-docs/"
+site_description = "The documentation of Phoebis Router, Phoebis Companion and Phoebis Proxy."
+repo_url = "https://github.com/phoebis-project"
+repo_name = "phoebis-project"
+# No edit_uri: the pages come from four repositories, so one edit link would name the wrong one for most pages.
+# No nav: scripts/assemble.py writes it from sources.toml and each product's docs/nav.toml.
+docs_dir = "docs"
+site_dir = "site"
+extra_css = ["assets/logo.css"]
+
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true
+
+[project.theme]
+language = "en"
+custom_dir = "overrides"
+# The mark and the favicon are the router's files, which the assembly copies with the router's pages.
+favicon = "router/assets/favicon.svg"
+logo = "router/assets/phoebis-router-light.svg"
+features = [
+  "content.code.copy",
+  "content.code.select",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+# Three palettes so the theme toggle offers system, light and dark. The light and dark screenshot variants on the
+# pages switch on the scheme these set.
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
