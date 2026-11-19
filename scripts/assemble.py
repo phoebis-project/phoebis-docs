@@ -322,13 +322,16 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
 
     lines[project] = lines[project].rstrip("\n") + "\n"
     lines.insert(project + 1, f"nav = {toml_nav(nav)}\n")
+    # Each source is read ahead of the first change to the tree, so a source that does not read leaves the last run's
+    # tree whole.
+    data = {path: source_file.read_bytes() for path, source_file in sorted(keep.items())}
     out.mkdir(parents=True, exist_ok=True)
     if not (out / MARKER).exists():
         (out / MARKER).write_text(MARKER_TEXT, encoding="utf-8")
     for name in TREES:
         prune(out, name, keep)
-    for path, source_file in sorted(keep.items()):
-        write(out / path, source_file.read_bytes())
+    for path, content in data.items():
+        write(out / path, content)
     write(out / "zensical.toml", "".join(lines).encode("utf-8"))
     return []
 

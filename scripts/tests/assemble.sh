@@ -105,6 +105,23 @@ echo '# Orphan' > "$tmp/beta/docs/site/orphan.md"
 run > /dev/null && fail "a page that no nav entry names passed"
 [ "$(cat "$tmp/out/docs/alpha/index.md")" = '# alpha' ] || fail "a refused run wrote alpha's edited page into the tree"
 
+# A source that does not read stops a run after its checks pass. An upkeep that runs ahead of the reads has by then
+# removed each page the sources no longer hold, so the run leaves the last good tree short of a page. The page leaves
+# alpha and the file that does not read is beta's, so such an upkeep runs before the read fails.
+# Root reads a file of any mode, so as root no source fails to read and the case cannot show the break.
+if [ "$(id -u)" = 0 ]; then
+  echo "skip: a source that does not read, since root reads a file of any mode"
+else
+  fresh
+  run > /dev/null || fail "two whole products were refused"
+  rm "$tmp/alpha/docs/site/guides/setup.md"
+  printf 'nav = [\n  { "Overview" = "index.md" },\n]\n' > "$tmp/alpha/docs/nav.toml"
+  chmod 000 "$tmp/beta/docs/site/index.md"
+  run > /dev/null 2>&1 && fail "a run with a source that does not read passed"
+  [ -f "$tmp/out/docs/alpha/guides/setup.md" ] \
+    || fail "a run that stopped on a source it cannot read removed a page of the last tree"
+fi
+
 # The preview runs the assembly again at each edit while Zensical serves the tree, so a page whose bytes did not
 # change keeps its file, or the server sees a change for each page at each save.
 fresh
