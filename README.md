@@ -34,6 +34,8 @@ the merged navigation. It removes from the tree what its sources no longer hold,
 `.phoebis-docs-build` at the tree's top and writes into a directory that does not exist, that is empty or that holds
 that file, and into no other. It writes nothing, removes nothing and prints one line per problem where:
 
+- a `--checkout` flag names a folder that `sources.toml` does not hold
+- a folder of `sources.toml` has no checkout
 - a nav path leaves the product's folder
 - a page of this repository's own `docs/` is not the start page, the one entry of the site's own nav
 - a page under `docs/site/` has no entry in the product's nav
@@ -43,6 +45,7 @@ that file, and into no other. It writes nothing, removes nothing and prints one 
 - a product's `docs/nav.toml` does not read as a nav of the shape above
 - a product's folder is taken by a path of this repository's own `docs/`
 - the output directory holds a file and is no tree the script wrote
+- `zensical.toml` holds no `[project]` line
 
 ## The preview
 
