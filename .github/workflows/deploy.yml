@@ -20,9 +20,10 @@ jobs:
   deploy:
     # Pages is the operator's switch: the job waits for a repository variable set after Pages is enabled, so a push
     # to main stays green until then. The site is built from the four main heads, so a start from another branch
-    # deploys nothing. configure-pages lives here rather than in the build because it fails on a repository where
-    # Pages is not enabled.
-    if: vars.DOCS_PAGES == '1' && github.ref == 'refs/heads/main'
+    # deploys nothing. The build uploads the artifact under this same condition and names the repository for its own
+    # reason, so the job names it too: a fork's deploy would otherwise run and find no artifact. configure-pages lives
+    # here rather than in the build because it fails on a repository where Pages is not enabled.
+    if: vars.DOCS_PAGES == '1' && github.ref == 'refs/heads/main' && github.repository == 'phoebis-project/phoebis-docs'
     needs: site
     permissions:
       id-token: write
