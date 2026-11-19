@@ -159,6 +159,11 @@ def read_product(source: Source, checkout: pathlib.Path, problems: list[str]) ->
     nav_file = checkout / "docs/nav.toml"
     site = checkout / "docs/site"
     nav, paths, files = [], None, []
+    # The checkout's own path is the caller's choice and may be a link. Below it, each root takes a test of its own,
+    # since a linked docs/ would carry the nav and the pages in from wherever it points.
+    if (checkout / "docs").is_symlink():
+        problems.append(linked(repository, "docs"))
+        return nav, files
     if nav_file.is_symlink():
         problems.append(linked(repository, "docs/nav.toml"))
     elif not nav_file.exists():
@@ -272,7 +277,7 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
     site = read_site(root, sources, problems)
     keep = {f"docs/{path}": root / "docs" / path for path in site["docs"]}
     keep |= {f"overrides/{path}": root / "overrides" / path for path in site["overrides"]}
-    nav = [{"Home": "index.md"}]
+    nav: list[dict[str, str | list]] = [{"Home": "index.md"}]
     for source in sources:
         checkout = checkouts.get(source.folder)
         if checkout is None:
@@ -288,7 +293,8 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
         problems.append(
             f"--out: {out} is neither missing nor empty nor a tree this script wrote, which holds {MARKER}"
         )
-    if problems:
+    # A missing [project] line is one of the problems, so `project` holds a line's index behind this return.
+    if problems or project is None:
         return problems
 
     lines[project] = lines[project].rstrip("\n") + "\n"
@@ -305,7 +311,9 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="assemble.py", usage=USAGE, description=__doc__.splitlines()[0])
+    # `python -OO` strips the docstring, and the help then goes without a description.
+    description = __doc__.splitlines()[0] if __doc__ else None
+    parser = argparse.ArgumentParser(prog="assemble.py", usage=USAGE, description=description)
     parser.add_argument(
         "--checkout",
         action="append",

@@ -83,14 +83,18 @@ PY
 
 # The preview runs the assembly again at each edit while Zensical serves the tree, and a second local build reuses it
 # too, so a page its product no longer holds has to leave the tree, or a link to the old page passes on that machine
-# alone.
+# alone. The removal stays inside the tree's docs/ and overrides/: an upkeep that walks the whole tree removes the
+# site/ that Zensical wrote and each tree nested beside it.
 fresh
 run > /dev/null || fail "two whole products were refused"
 rm "$tmp/alpha/docs/site/guides/setup.md"
 printf 'nav = [\n  { "Overview" = "index.md" },\n]\n' > "$tmp/alpha/docs/nav.toml"
+mkdir -p "$tmp/out/site"
+: > "$tmp/out/site/keep.html"
 run > /dev/null || fail "a second run into the tree the first one wrote was refused"
 [ ! -e "$tmp/out/docs/alpha/guides/setup.md" ] || fail "a page its product no longer holds stayed in the build tree"
 [ -f "$tmp/out/docs/alpha/index.md" ] || fail "a page its product still holds left the build tree"
+[ -f "$tmp/out/site/keep.html" ] || fail "a second run removed a file of the tree's site/, which Zensical writes"
 
 # A refusal that comes after part of the tree is written leaves a served tree half new. The edit is in the first
 # product and the refusal in the second, so an assembly that copies one product before it checks the next shows it.
