@@ -132,6 +132,51 @@ ln -s "$tmp/beta-site" "$tmp/beta/docs/site"
 out=$(run) && fail "a product's docs/site as a symbolic link passed"
 echo "$out" | grep -qF 'example/beta: docs/site is a symbolic link, and the assembly copies none' \
   || fail "a product's docs/site as a symbolic link was refused without its line: $out"
+# The site's own docs/ as a link is a linked top directory too, so the walk would copy it whole from wherever it points.
+fresh
+mv "$repo/docs" "$tmp/site-docs"
+ln -s "$tmp/site-docs" "$repo/docs"
+status=0
+out=$(run) || status=$?
+[ "$status" = 1 ] || fail "the site's own docs/ as a symbolic link exited $status, where a refusal exits 1: $out"
+echo "$out" | grep -qF 'this repository: docs is a symbolic link, and the assembly copies none' \
+  || fail "the site's own docs/ as a symbolic link was refused without its line: $out"
+[ ! -e "$tmp/out" ] || fail "a run that refused the site's own docs/ as a symbolic link wrote a build tree"
+rm "$repo/docs"
+mv "$tmp/site-docs" "$repo/docs"
+# The walk copies no link, so a link under the site's own docs/ that the run does not report drops its file from the
+# site without a word.
+fresh
+: > "$tmp/site-shot.png"
+ln -s "$tmp/site-shot.png" "$repo/docs/linked.png"
+status=0
+out=$(run) || status=$?
+[ "$status" = 1 ] || fail "a symbolic link under the site's own docs/ exited $status, where a refusal exits 1: $out"
+echo "$out" | grep -qF 'this repository: docs/linked.png is a symbolic link, and the assembly copies none' \
+  || fail "a symbolic link under the site's own docs/ was refused without its line: $out"
+[ ! -e "$tmp/out" ] || fail "a run that refused a symbolic link under the site's own docs/ wrote a build tree"
+rm "$repo/docs/linked.png"
+# A product's docs as a link would carry the nav and the pages in from wherever it points, and the tests of
+# docs/nav.toml and docs/site below it read two plain entries.
+fresh
+mv "$tmp/beta/docs" "$tmp/beta-docs"
+ln -s "$tmp/beta-docs" "$tmp/beta/docs"
+status=0
+out=$(run) || status=$?
+[ "$status" = 1 ] || fail "a product's docs as a symbolic link exited $status, where a refusal exits 1: $out"
+echo "$out" | grep -qF 'example/beta: docs is a symbolic link, and the assembly copies none' \
+  || fail "a product's docs as a symbolic link was refused without its line: $out"
+[ ! -e "$tmp/out" ] || fail "a run that refused a product's docs as a symbolic link wrote a build tree"
+# A product's docs/nav.toml as a link would read a file from outside the checkout as the product's nav.
+fresh
+mv "$tmp/alpha/docs/nav.toml" "$tmp/alpha-nav.toml"
+ln -s "$tmp/alpha-nav.toml" "$tmp/alpha/docs/nav.toml"
+status=0
+out=$(run) || status=$?
+[ "$status" = 1 ] || fail "a product's docs/nav.toml as a symbolic link exited $status, where a refusal exits 1: $out"
+echo "$out" | grep -qF 'example/alpha: docs/nav.toml is a symbolic link, and the assembly copies none' \
+  || fail "a product's docs/nav.toml as a symbolic link was refused without its line: $out"
+[ ! -e "$tmp/out" ] || fail "a run that refused a product's docs/nav.toml as a symbolic link wrote a build tree"
 
 # The upkeep removes files, so an --out that names a product's checkout would lose pages that are not committed yet.
 fresh

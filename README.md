@@ -1,7 +1,7 @@
 # Phoebis documentation
 
 This repository builds the one documentation site of Phoebis Router, Phoebis Companion and Phoebis Proxy. It holds the
-site's configuration, its theme, its start page, its scripts and its workflows. The pages of a product stay in that
+site's configuration, its scripts, its start page, its theme and its workflows. The pages of a product stay in that
 product's repository, and each build copies them into one tree. The site is published at
 <https://phoebis-project.github.io/phoebis-docs/> once GitHub Pages is enabled for this repository.
 
@@ -40,6 +40,7 @@ that file, and into no other. It writes nothing, removes nothing and prints one 
 - a product has no `docs/site/index.md` or no `docs/nav.toml`
 - a product's `docs/`, `docs/nav.toml` or `docs/site/`, this repository's `docs/` or `overrides/`, or a path under a
   tree it copies is a symbolic link
+- a product's `docs/nav.toml` does not read as a nav of the shape above
 - a product's folder is taken by a path of this repository's own `docs/`
 - the output directory holds a file and is no tree the script wrote
 
@@ -53,8 +54,8 @@ python3 scripts/preview.py --checkout router=../phoebis --checkout companion=../
 ```
 
 A local directory can have another name than its repository, so each path comes from its flag or from `checkouts.toml`
-at this repository's root, which git ignores. A flag wins over the file, and a relative path in the file is read from
-the file's folder:
+at this repository's root, which git ignores and which the preview reads once, at its start. A flag wins over the file,
+and a relative path in the file is read from the file's folder:
 
 ```toml
 companion = "../phoebis-companion"
@@ -77,9 +78,9 @@ python3 scripts/check-site.py prose build/docs README.md ../phoebis/README.md ..
 
 `links` walks the built site for an internal link or an image that resolves to nothing and for a fragment that names no
 heading or anchor on the page it lands on. `prose` holds each page of the build tree and the four READMEs to the site's
-writing rules, which apply to the pages of each product: no semicolon on a prose line, no line over 120 columns outside
-a table or a code block, no em-dash and no en-dash, no word from its list of words a reference page does not use, and no
-bare `api_key` outside a code span. With a path, `prose` reads that file or walks that folder.
+writing rules, which apply to the pages of each product: no bare `api_key` outside a code span, no em-dash and no
+en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a prose line, and no word from
+its list of words a reference page does not use. With a path, `prose` reads that file or walks that folder.
 
 ## Links between products
 

@@ -167,13 +167,14 @@ echo "$out" | grep -q 'open-span-fence.md:5: semicolon:' || fail "prose did not 
 out=$(python3 "$check" prose "$tmp/prose/inner-fence.md" 2>&1) && fail "prose passed the prose after a block holding a fence line with an info string"
 echo "$out" | grep -q 'inner-fence.md:5: semicolon:' || fail "prose did not report the line after the block's bare closing fence: $out"
 
-# A walk that reads a folder's top level alone passes a tree whose product pages, one folder down, all break a rule.
+# A walk that reads a folder's top level alone passes a tree whose product pages, one folder down, all break a rule,
+# and a walk that reads below the top alone passes the start page. Both pages here break a rule.
 mkdir -p "$tmp/tree/router"
-echo '# A clean top page' > "$tmp/tree/index.md"
+echo 'A top line; with a semicolon.' > "$tmp/tree/index.md"
 echo 'A nested line; with a semicolon.' > "$tmp/tree/router/page.md"
-out=$(python3 "$check" prose "$tmp/tree" 2>&1) && fail "prose passed a tree whose nested page breaks a rule"
+out=$(python3 "$check" prose "$tmp/tree" 2>&1) && fail "prose passed a tree whose top page and nested page break a rule"
 echo "$out" | grep -q 'router/page.md:1: semicolon:' || fail "prose did not report the page one folder below the top: $out"
-echo "$out" | grep -q 'tree/index.md:' && fail "prose reported the clean page at the tree's top: $out"
+echo "$out" | grep -q 'tree/index.md:1: semicolon:' || fail "prose did not report the page at the tree's top: $out"
 
 # A prefix read that expects one path segment refuses each root-relative link of a site whose address has no path,
 # such as one on a domain of its own.

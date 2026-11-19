@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      # A step's condition cannot read a secret, so the job states once whether both halves of the credential are
-      # set. A pull request from a fork gets no secret and reads with the job's own token, which reads public
-      # repositories alone.
+      # A step's condition cannot read a secret, so the job states once whether both halves of the credential are set. A
+      # pull request from a fork gets no secret and reads with the job's own token, which reads no other private
+      # repository.
       DOCS_CREDENTIAL: ${{ vars.DOCS_APP_CLIENT_ID != '' && secrets.DOCS_APP_PRIVATE_KEY != '' }}
     steps:
       # A caller that misnames its product would build each product at main and pass without its own change.
