@@ -21,8 +21,8 @@ BUILD = ROOT / "build"
 SITE = BUILD / "site"
 
 # Another host's links are not this script's business, in a page and in a style sheet's `url()` and `@import` alike, and
-# each other value of a style sheet has to resolve to a file of the site as a page's link does. A value at one of
-# Google's font hosts is tested in front of this skip and reported.
+# each other value of a style sheet has to resolve to a file of the site as a page's link does. `link_kind` tests a
+# value for one of Google's font hosts in front of this skip, and the check reports a value at either host.
 SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
 # The theme asks these two hosts for its faces, which hands Google each reader's address, unless `font = false` in
 # zensical.toml switches the request off. The strict build passes a lost or misspelled setting, so the arm reports a
@@ -61,6 +61,16 @@ def names_font_host(raw):
         return False
 
 
+def link_kind(raw):
+    """The kind of a page's or a style sheet's value: "font" at a font host of Google, None for another host's value
+    that the check skips and "site" for one that has to resolve."""
+    if names_font_host(raw):
+        return "font"
+    if raw.startswith(SKIPPED):
+        return None
+    return "site"
+
+
 class Links(html.parser.HTMLParser):
     """The hrefs and srcs a page carries and the ids the site build gave its headings and anchors. Of another host's
     links it keeps the ones at a font host of Google, in a list of their own, and drops the rest."""
@@ -77,9 +87,10 @@ class Links(html.parser.HTMLParser):
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
             if name in ("href", "src") and value:
-                if names_font_host(value):
+                kind = link_kind(value)
+                if kind == "font":
                     self.font_hosts.append(value)
-                elif not value.startswith(SKIPPED):
+                elif kind == "site":
                     self.found.append(value)
                     if name == "href":
                         self.hrefs.append(value)
@@ -146,30 +157,32 @@ def check_links(site, prefix):
         print(f"no pages under {site}. Build the site first.")
         return 1
     findings = 0
+
+    def report(path, raw, reason):
+        nonlocal findings
+        print(f"{path.relative_to(site)}: {raw} {reason}")
+        findings += 1
+
     for page in pages:
         parser = parsed(page)
         for raw in parser.font_hosts:
-            print(f"{page.relative_to(site)}: {raw} names a font host of Google")
-            findings += 1
+            report(page, raw, "names a font host of Google")
         for raw in parser.found:
             if not resolves(site, prefix, page, raw):
-                print(f"{page.relative_to(site)}: {raw} resolves to nothing")
-                findings += 1
+                report(page, raw, "resolves to nothing")
         for raw in parser.hrefs:
             target = fragment_missing_from(site, prefix, page, raw)
             if target is not None:
-                print(f"{page.relative_to(site)}: {raw} names no heading or anchor in {target.relative_to(site)}")
-                findings += 1
+                report(page, raw, f"names no heading or anchor in {target.relative_to(site)}")
     # A browser reads a style sheet's value against the sheet's folder, whichever page loads the sheet.
     for sheet in sorted(site.rglob("*.css")):
         for match in STYLE_LINK.finditer(sheet.read_text(encoding="utf-8")):
             raw = match["url"] if match["imported"] is None else match["imported"]
-            if names_font_host(raw):
-                print(f"{sheet.relative_to(site)}: {raw} names a font host of Google")
-                findings += 1
-            elif not raw.startswith(SKIPPED) and not resolves(site, prefix, sheet, raw):
-                print(f"{sheet.relative_to(site)}: {raw} resolves to nothing")
-                findings += 1
+            kind = link_kind(raw)
+            if kind == "font":
+                report(sheet, raw, "names a font host of Google")
+            elif kind == "site" and not resolves(site, prefix, sheet, raw):
+                report(sheet, raw, "resolves to nothing")
     return 1 if findings else 0
 
 

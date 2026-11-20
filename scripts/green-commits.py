@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from assemble import ROOT, read_sources
+from assemble import ROOT, command_parser, folder_pair, read_sources
 
 USAGE = "green-commits.py [--own FOLDER=COMMIT] [--or-main] [--wait SECONDS] [--every SECONDS]"
 WORKFLOW = "docs.yml"
@@ -93,27 +93,24 @@ def held(repository: str, commit: str) -> bool:
     return status in HELD
 
 
-def weigh(repository: str, runs: list[dict]) -> tuple[dict | None, dict | None, dict | None]:
-    """The newest run that a push to main started, the newest run in progress above the green run, and the newest run
-    that passes the four tests, each None where the runs hold none. The tests run in their order, so a commit is
-    compared with main for a complete green run alone."""
-    newest = running = None
+def weigh(repository: str, runs: list[dict]) -> tuple[dict | None, bool, dict | None]:
+    """The newest run that a push to main started, whether a run in progress stands above the green run, and the newest
+    run that passes the four tests, either run None where the runs hold none. The tests run in their order, so a commit
+    is compared with main for a complete green run alone."""
+    newest, running = None, False
     # An answer holds for this round of reads alone, so a rewrite of main during the wait shows in the next round.
-    holds: dict[str, bool] = {}
+    dropped: set[str] = set()
     for run in runs:
         if run["event"] != "push" or run["head_branch"] != BRANCH:
             continue
         if newest is None:
             newest = run
         if run["status"] != "completed":
-            if running is None:
-                running = run
-        elif run["conclusion"] == "success":
-            commit = run["head_sha"]
-            if commit not in holds:
-                holds[commit] = held(repository, commit)
-            if holds[commit]:
+            running = True
+        elif run["conclusion"] == "success" and run["head_sha"] not in dropped:
+            if held(repository, run["head_sha"]):
                 return newest, running, run
+            dropped.add(run["head_sha"])
     return newest, running, None
 
 
@@ -149,14 +146,6 @@ def settle(
     return commit
 
 
-def own_pair(value: str) -> tuple[str, str]:
-    """A `FOLDER=COMMIT` argument as its two halves. argparse reports any other value as a usage error."""
-    folder, sep, commit = value.partition("=")
-    if not sep or not folder or not commit:
-        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=COMMIT")
-    return folder, commit
-
-
 def seconds(least: int):
     """A parser type for a whole number of seconds of `least` or more. With a pause of 0 between two reads, a run in
     progress would keep the script reading without an end."""
@@ -174,12 +163,12 @@ def seconds(least: int):
 
 
 def main(argv: list[str]) -> int:
-    # `python -OO` strips the docstring, and the help then goes without a description.
-    parser = argparse.ArgumentParser(
-        prog="green-commits.py", usage=USAGE, description=__doc__.splitlines()[0] if __doc__ else None
-    )
+    parser = command_parser("green-commits.py", USAGE, __doc__)
     parser.add_argument(
-        "--own", type=own_pair, metavar="FOLDER=COMMIT", help="the caller's product, read at its own commit"
+        "--own",
+        type=lambda value: folder_pair(value, "COMMIT"),
+        metavar="FOLDER=COMMIT",
+        help="the caller's product, read at its own commit",
     )
     parser.add_argument(
         "--or-main", action="store_true", help="read a product without a green run at main, where the script stops"
@@ -217,7 +206,7 @@ def main(argv: list[str]) -> int:
             for source in pending:
                 runs = read_runs(source.repository)
                 newest, running, green = weigh(source.repository, runs)
-                if running is not None and slept < args.wait:
+                if running and slept < args.wait:
                     waiting.append(source)
                     continue
                 commits[source.folder] = settle(

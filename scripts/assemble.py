@@ -44,18 +44,29 @@ def read_sources(root: pathlib.Path) -> list[Source]:
     return [Source(entry["folder"], entry["repository"], entry["title"]) for entry in data["source"]]
 
 
+def folder_pair(value: str, right: str) -> tuple[str, str]:
+    """A `FOLDER=<right>` argument as its two halves. argparse reports any other value as a usage error."""
+    folder, sep, half = value.partition("=")
+    if not sep or not folder or not half:
+        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER={right}")
+    return folder, half
+
+
 def checkout_pair(value: str) -> tuple[str, pathlib.Path]:
-    """A `FOLDER=PATH` argument as its two halves. argparse reports any other value as a usage error."""
-    folder, sep, path = value.partition("=")
-    if not sep or not folder or not path:
-        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=PATH")
+    """A `FOLDER=PATH` argument as its folder and its path."""
+    folder, path = folder_pair(value, "PATH")
     return folder, pathlib.Path(path)
+
+
+def command_parser(prog: str, usage: str, doc: str | None) -> argparse.ArgumentParser:
+    """A command's parser, with the first line of the command's docstring as its description."""
+    # `python -OO` strips the docstring, and the help then goes without a description.
+    return argparse.ArgumentParser(prog=prog, usage=usage, description=doc.splitlines()[0] if doc else None)
 
 
 def checkout_parser(prog: str, usage: str, doc: str | None, **checkout) -> argparse.ArgumentParser:
     """A command's parser with its `--checkout` option, which takes the command's own help and default."""
-    # `python -OO` strips the docstring, and the help then goes without a description.
-    parser = argparse.ArgumentParser(prog=prog, usage=usage, description=doc.splitlines()[0] if doc else None)
+    parser = command_parser(prog, usage, doc)
     parser.add_argument("--checkout", action="append", type=checkout_pair, metavar="FOLDER=PATH", **checkout)
     return parser
 
