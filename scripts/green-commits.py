@@ -17,6 +17,7 @@ the log of a workflow's job.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -163,12 +164,14 @@ def seconds(least: int):
 
 
 def own_pair(value: str) -> tuple[str, str]:
-    """The argument of --own as its folder and its commit. A line feed in the commit would write an assignment of its
-    own to the step's output file and replace the script's line for a product in front of the caller's, so the commit
-    holds no white space. The test stands here, since --checkout shares folder_pair and its path can hold a blank."""
+    """The argument of --own as its folder and its commit, a full commit id. The check behind the checkouts passes over
+    main, the script's own value for a product without a green run, so the branch name main would build the head of main
+    under the caller's commit. A line feed would write an assignment of its own to the step's output file and replace
+    the script's line for a product in front of the caller's. The test stands here, since --checkout shares folder_pair
+    and its path can hold a blank."""
     folder, commit = folder_pair(value, "COMMIT")
-    if any(character.isspace() for character in commit):
-        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=COMMIT, since its commit holds white space")
+    if not re.fullmatch("[0-9a-f]{40}", commit):
+        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=COMMIT, since its commit is no full commit id")
     return folder, commit
 
 

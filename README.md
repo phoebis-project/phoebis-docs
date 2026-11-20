@@ -113,7 +113,8 @@ longer has, for which the comparison answers 404. A run that was started again c
 attempt. The file name `docs.yml` and the branch `main` are therefore part of the contract between the repositories.
 
 With `--own FOLDER=COMMIT` the command prints that product at that commit and reads none of its runs. A product's
-workflow hands over its own commit this way, through the inputs `product` and `ref` of `build.yml`.
+workflow hands over its own commit this way, through the inputs `product` and `ref` of `build.yml`. COMMIT is a full
+commit id, 40 hexadecimal digits in lower case, and another value is a usage error.
 
 The `Deploy` workflow differs from each other build in two cases:
 

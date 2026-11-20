@@ -224,6 +224,12 @@ beta=$cb"
 fresh "the caller's commit with a line feed and a second assignment"
 pick --own "alpha=$c1"$'\n'"beta=$c2"
 ends 2 ""
+# The check behind the checkouts passes over main, the script's own value for a product read at main, so a caller that
+# hands over main builds the head of main under its own commit. The case writes no answer, so a script that takes the
+# value and reads fails by its exit status.
+fresh "the caller's commit as the branch name main"
+pick --own "alpha=main"
+ends 2 ""
 
 # Right after a push the newest run is still in progress, and a selection that reads once and counts that run as red
 # publishes the commit before the pushed one, which no later deploy follows. The run ends green at the second read, so
