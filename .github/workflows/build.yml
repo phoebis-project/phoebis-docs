@@ -124,9 +124,10 @@ jobs:
       # default branch, so the build would hold that product's unchecked head and pass. The guard behind the selection
       # writes the three names once more and holds the selection's side alone. This step takes each folder from the
       # selection's lines, so it writes no name, and it passes over a product that the selection read at main, whose
-      # value is no commit.
+      # value is no commit. On a last line without a line feed, read ends with another status than 0 and still fills
+      # both names, so the loop also runs its body where read filled a folder.
       - run: |
-          while IFS='=' read -r folder commit; do
+          while IFS='=' read -r folder commit || [ -n "$folder" ]; do
             built=$(git -C "checkouts/$folder" rev-parse HEAD)
             if [ "$commit" != main ] && [ "$built" != "$commit" ]; then
               echo "checkouts/$folder holds $built, and the selection named $commit"
