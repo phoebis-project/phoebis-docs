@@ -19,20 +19,18 @@ printf '[[source]]\nfolder = "alpha"\nrepository = "example/alpha"\ntitle = "Alp
 printf '[[source]]\nfolder = "beta"\nrepository = "example/beta"\ntitle = "Beta"\n' >> "$repo/sources.toml"
 
 # The case's gh answers a path with the answers the case wrote for it, in their order and with the last one again for
-# each further call. A call of another form ends with exit 2 and a path without an answer with exit 1, each with a line,
-# so a script that calls gh another way or reads a path the case did not expect fails a case that expects exit 0.
+# each further call. A call of another form ends with exit 2 and a path without an answer with exit 1, each with a line
+# that gh also records. A script that stops on such an answer can still end as the case expects, so each case fails on a
+# record, and a script that calls gh another way or reads a path the case did not expect fails the case.
 cat > "$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -euo pipefail
+refuse() { echo "$2" >> "$(dirname "$0")/../refused"; echo "$2" >&2; exit "$1"; }
 if [ "$#" != 4 ] || [ "$1" != api ] || [ "$2" != --method ] || [ "$3" != GET ]; then
-  echo "the case's gh takes api --method GET <path> alone, not: $*" >&2
-  exit 2
+  refuse 2 "the case's gh takes api --method GET <path> alone, not: $*"
 fi
 dir="$(dirname "$0")/../answers/$(printf '%s' "$4" | sha256sum | cut -d ' ' -f 1)"
-if [ ! -d "$dir" ]; then
-  echo "the case wrote no answer for $4" >&2
-  exit 1
-fi
+[ -d "$dir" ] || refuse 1 "the case wrote no answer for $4"
 call=$(( $(cat "$dir/calls") + 1 ))
 echo "$call" > "$dir/calls"
 [ -e "$dir/$call.exit" ] || call=$(cat "$dir/count")
@@ -83,8 +81,8 @@ refused() {
 # The product beside the one a case is about: one complete green run of a push to main on the head of main.
 one_green() { runs "$1" "$(ended "$2" push main "$3" success)"; compared "$1" "$3" identical; }
 
-# Each case starts from no answer, so no answer of an earlier case can satisfy it.
-fresh() { name=$1; rm -rf "$tmp/answers"; mkdir -p "$tmp/answers"; }
+# Each case starts from no answer and no refused call, so nothing of an earlier case can satisfy it or fail it.
+fresh() { name=$1; rm -rf "$tmp/answers" "$tmp/refused"; mkdir -p "$tmp/answers"; }
 pick() {
   status=0
   out=$(PATH="$tmp/bin:$PATH" python3 "$repo/scripts/green-commits.py" "$@" 2> "$tmp/err") || status=$?
@@ -93,6 +91,7 @@ pick() {
 ends() {
   [ "$status" = "$1" ] || fail "$name: exit $status, where $1 was due: $err"
   [ "$out" = "$2" ] || fail "$name: the standard output was '$out', where '$2' was due"
+  [ ! -e "$tmp/refused" ] || fail "$name: the case's gh refused a call: $(cat "$tmp/refused")"
 }
 # Each value has to stand as a word of its own, so an id does not match inside a longer number.
 logged() {
@@ -111,9 +110,9 @@ c4=4444444444444444444444444444444444444444
 ca=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 cb=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
-# A selection that takes the newest run's commit whatever its result builds a commit that failed its own checks, and
-# the build passes on it, since those checks run in the product's own workflow alone. The newest run was cancelled, so
-# a test that passes over a failure alone takes it. main holds each of the three commits, so the test of the conclusion
+# A selection that takes the newest run's commit whatever its result builds a commit that failed its own checks, and the
+# build passes on it, since those checks run in the product's own workflow alone. The newest run was cancelled, so a
+# test that passes over a failure alone takes it. main holds each of the three commits, so the test of the conclusion
 # alone stands between the two red runs and the build.
 fresh "a red newest run"
 runs example/alpha "$(ended 101 push main "$c1" cancelled)" "$(ended 102 push main "$c2" failure)" \
@@ -126,10 +125,10 @@ pick
 ends 0 "alpha=$c3
 beta=$cb"
 
-# The API drops a query parameter it does not know, so a mistyped query hands back a pull request's run, and a
-# selection that trusts the filter builds a commit that no one merged. Above the push to main stand a pull request's
-# green run on a branch named main and a green push to another branch, and main holds both commits, so the test of the
-# event and the branch alone passes them over.
+# The API drops a query parameter it does not know, so a mistyped query hands back a pull request's run, and a selection
+# that trusts the filter builds a commit that no one merged. Above the push to main stand a pull request's green run on
+# a branch named main and a green push to another branch, and main holds both commits, so the test of the event and the
+# branch alone passes them over.
 fresh "a green run that is no push to main"
 runs example/alpha "$(ended 101 pull_request main "$c1" success)" "$(ended 102 push feature "$c2" success)" \
   "$(ended 103 push main "$c3" success)"
@@ -231,13 +230,18 @@ ends 0 "alpha=$c1
 beta=$cb"
 
 # A script that stops at the end of the wait lets one stuck run hold back the two other products, and each product's
-# run, which waits for no run, would turn red while another product's run is in progress. The run it passes over has
-# to show in the log.
+# run, which waits for no run, would turn red while another product's run is in progress. The run it passes over has to
+# show in the log. The wait has to end where its two arguments put the end, after two reads here. The run ends green at
+# a third read, so a script that does not count the seconds it slept, or that sleeps once more at the end, prints the
+# newest run's commit. Without the count a deploy beside a stuck run reads until the job's time is over.
 fresh "a run still in progress at the end of the wait"
 runs example/alpha "$(running 101 "$c1")" "$(ended 102 push main "$c2" success)"
+runs example/alpha "$(running 101 "$c1")" "$(ended 102 push main "$c2" success)"
+runs example/alpha "$(ended 101 push main "$c1" success)" "$(ended 102 push main "$c2" success)"
+compared example/alpha "$c1" identical
 compared example/alpha "$c2" ahead
 one_green example/beta 201 "$cb"
-pick --wait 0
+pick --wait 1 --every 1
 ends 0 "alpha=$c2
 beta=$cb"
 logged 101
@@ -256,8 +260,8 @@ pick --wait 1 --every 1
 ends 0 "alpha=$c1
 beta=$cb"
 
-# --every 0 reads without a pause, and without an end while a run is in progress. The case writes no answer, so a
-# script that takes the value and reads fails by its exit status.
+# --every 0 reads without a pause, and without an end while a run is in progress. The case writes no answer, so a script
+# that takes the value and reads fails by its exit status.
 fresh "a refused value of the interval"
 pick --wait 30 --every 0
 ends 2 ""

@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """Prints the commit at which a build reads each product: its newest commit on main whose docs.yml run ended green.
 
-A product's commit is that of its newest run that a push to main started, that is complete with the conclusion
-`success` and whose commit main still holds. The script tests the event and the branch of each run itself, since the
-API drops a query parameter it does not know, and it compares each green commit with main, since the list of runs
-keeps the runs of commits that a rewrite of main dropped. Each read is one call of `gh api`, which holds the API's
-address and the token.
+A product's commit is that of its newest run that a push to main started, that is complete with the conclusion `success`
+and whose commit main still holds. The script tests the event and the branch of each run itself, since the API drops a
+query parameter it does not know, and it compares each green commit with main, since the list of runs keeps the runs of
+commits that a rewrite of main dropped. Each read is one call of `gh api`, which holds the API's address and the token.
 
-`--own FOLDER=COMMIT` hands the caller's product through at its own commit, and the script reads none of its runs.
-With `--wait`, the script reads a product again every `--every` seconds while a run in progress stands above its newest
-green run, until it has slept `--wait` seconds in all, and then passes over that run with a notice. A product without a
-green run stops the script, or reads main with `--or-main`. A failed read stops it either way.
+`--own FOLDER=COMMIT` hands the caller's product through at its own commit, and the script reads none of its runs. With
+`--wait`, the script reads a product again every `--every` seconds while a run in progress stands above its newest green
+run, until it has slept `--wait` seconds in all, and then passes over that run with a notice. A product without a green
+run stops the script, or reads main with `--or-main`. A failed read stops it either way.
 
-On success the script prints one `folder=commit` line per product to its standard output, in the order of
-sources.toml and all at once, and exits 0. A stop prints none of them and exits 1. Each other line goes to the error
-output, which is the log of a workflow's job.
+On success the script prints one `folder=commit` line per product to its standard output, in the order of sources.toml
+and all at once, and exits 0. A stop prints none of them and exits 1. Each other line goes to the error output, which is
+the log of a workflow's job.
 """
 import argparse
 import json
@@ -57,9 +56,9 @@ def unreadable(repository: str, path: str, code: int) -> Stop:
 
 
 def failed(repository: str, path: str, code: int, body: object) -> Stop:
-    """The stop for a read that gh ended with another exit status than 0. The status and the message come from the
-    body of GitHub's answer, and a read that brought no such body, as after a lost connection, gets the line of an
-    answer the script cannot read."""
+    """The stop for a read that gh ended with another exit status than 0. The status and the message come from the body
+    of GitHub's answer, and a read that brought no such body, as after a lost connection, gets the line of an answer the
+    script cannot read."""
     if isinstance(body, dict) and "status" in body and "message" in body:
         return Stop(f"::error::{repository}: GET {path} failed with HTTP {body['status']}: {body['message']}")
     return unreadable(repository, path, code)
