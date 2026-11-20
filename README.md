@@ -159,8 +159,9 @@ are the router's files `docs/site/assets/favicon.svg`, `docs/site/assets/phoebis
 - A page or an anchor that is renamed or removed goes in three steps: the new target beside the old one, then the links
   in the other repository, then the removal of the old one.
 
-Each step waits for the green `Documentation` run of the step before it, since a build reads the other products at their
-newest green commits.
+Each step waits for the green `Documentation` run on `main` of the step before it, since a build reads the other
+products at their newest green commits. The green run of that step's pull request does not count, since the build reads
+the runs that a push to `main` started.
 
 ## The fonts
 
