@@ -287,8 +287,10 @@ beta=$cb"
 # While a run of alpha is in progress, the script reads beta's runs no more, so a rewrite of beta's main during the wait
 # shows in no read of them. A script that prints beta's commit without comparing it once more behind the wait prints a
 # commit that main dropped while another product's run was in progress. Beta's commit is identical to main at the first
-# comparison and has diverged from it at the second.
+# comparison and has diverged from it at the second. Alpha's run stays in progress across two sleeps, so a script that
+# compares the commits of the round in front of its last sleep alone prints beta's commit too.
 fresh "a commit that main drops while another product waits"
+runs example/alpha "$(running 101 "$c1")"
 runs example/alpha "$(running 101 "$c1")"
 runs example/alpha "$(ended 101 push main "$c1" success)"
 compared example/alpha "$c1" identical
