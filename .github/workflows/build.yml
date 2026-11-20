@@ -38,8 +38,8 @@ jobs:
         run: |
           echo "the product input names no folder of sources.toml"
           exit 1
-      # The selection would refuse a product without a commit in the same place and words, so this guard stops that
-      # caller in front of the token step, with a line that names the empty input.
+      # The selection would refuse a product without a commit in the same place and with another usage line about --own,
+      # so this guard stops that caller in front of the token step, with a line that names the empty input.
       - if: inputs.product != '' && inputs.ref == ''
         run: |
           echo "the ref input is empty, and a product's build needs the caller's commit"

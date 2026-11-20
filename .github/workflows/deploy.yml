@@ -21,9 +21,9 @@ jobs:
       DOCS_APP_PRIVATE_KEY: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
   deploy:
     # Pages is the operator's switch: the job waits for a repository variable set after Pages is enabled, so a push to
-    # main stays green until then. No earlier revision tests this variable, so that a run of such a revision, started
-    # again, publishes none of the unchecked heads it builds. The site is built from this repository's main and from
-    # each product's newest green commit, so a start from another branch deploys nothing. The build uploads the artifact
+    # main stays green until then. No revision that builds the products' unchecked heads tests this variable, so a run
+    # of one, started again, publishes none of them. The site is built from this repository's main and from each
+    # product's newest green commit, so a start from another branch deploys nothing. The build uploads the artifact
     # under this same condition and names the repository for its own reason, so the job names it too: a fork's deploy
     # would otherwise run and find no artifact. configure-pages lives here rather than in the build because it fails on
     # a repository where Pages is not enabled.
