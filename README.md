@@ -93,8 +93,9 @@ links DIR/site` reads the site built there.
 
 Each build reads this repository at `main`, the caller's product at the caller's commit, and each other product at its
 newest commit on `main` whose `Documentation` run ended green. A pull request of this repository reads its own commit
-and each product that way. So a commit that failed a check of its own repository is not published, and it reaches no
-build of another product. `scripts/green-commits.py` picks the commits, as a step of `build.yml`:
+and each product that way. So a commit that failed a check of its own repository is not published, and no other build
+reads it, with one exception: a product with no green run, the second case below. `scripts/green-commits.py` picks the
+commits, as a step of `build.yml`:
 
 ```sh
 python3 scripts/green-commits.py
@@ -110,16 +111,16 @@ longer has, for which the comparison answers 404. A run that was started again c
 attempt. The file name `docs.yml` and the branch `main` are therefore part of the contract between the repositories.
 
 With `--own FOLDER=COMMIT` the command prints that product at that commit and reads none of its runs. A product's
-workflow hands over its own commit this way, through the two inputs of `build.yml`.
+workflow hands over its own commit this way, through the inputs `product` and `ref` of `build.yml`.
 
 The `Deploy` workflow differs from each other build in two cases:
 
 - A run that is queued or in progress. The deploy calls the script with `--wait 300 --every 10`, so the script reads
   again every 10 seconds until it has slept 300 seconds. The time of its reads comes on top. A product's push starts the
   deploy from the last job of its own `Documentation` run, which is seconds from its end at that moment. When the time
-  is over, the script takes the newest green commit below that run and prints a notice that names the run. A run that
-  was passed over starts a deploy of its own once it ends green. The run that started this deploy does not, so its
-  commit then waits for the next start of a deploy. Each other build waits for no run.
+  is over, the script takes the newest green commit below that run and prints a notice that names the product's newest
+  run. A run that was passed over starts a deploy of its own once it ends green. The run that started this deploy does
+  not, so its commit then waits for the next start of a deploy. Each other build waits for no run.
 - A product with no green run on `main` among its 100 newest. The deploy stops, and the site keeps its last state. Each
   other build calls the script with `--or-main`, reads that product at `main` and prints a notice. Such a build
   publishes nothing, and two products without a green run could otherwise never get one.
