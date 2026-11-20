@@ -95,6 +95,35 @@ mkdir -p "$tmp/skip-link-site"
 echo '<a href="#__skip">skip</a><p>not found</p>' > "$tmp/skip-link-site/404.html"
 out=$(python3 "$check" links "$tmp/skip-link-site" 2>&1) || fail "the theme's skip link was refused: $out"
 
+# A lost or misspelled setting brings back the theme's request to Google's font hosts, which hands Google each reader's
+# address, and the strict build passes such a page. The first site's link to another host is the side that passes.
+mkdir -p "$tmp/font-host-site"
+echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter">' > "$tmp/font-host-site/index.html"
+out=$(python3 "$check" links "$tmp/font-host-site" 2>&1) && fail "a page that links a font host of Google passed"
+echo "$out" | grep -qF "index.html: https://fonts.googleapis.com/css?family=Inter" \
+  || fail "wrong finding for a page that links a font host of Google: $out"
+
+# A font file that a style sheet misnames shows the reader a fallback face, and no page's link names that file. A style
+# sheet's url() or @import can also load from Google's font hosts with no link to them on a page. The passing half holds
+# the base of the read, since a url() read against the site's top refuses it.
+mkdir -p "$tmp/style-site/assets/fonts"
+: > "$tmp/style-site/index.html"
+: > "$tmp/style-site/assets/fonts/a.woff2"
+echo '@font-face { font-family: "A"; src: url("fonts/a.woff2") format("woff2"); }' > "$tmp/style-site/assets/site.css"
+out=$(python3 "$check" links "$tmp/style-site" 2>&1) || fail "a style sheet whose url() resolves was refused: $out"
+{
+  echo '@font-face { font-family: "B"; src: url("fonts/b.woff2") format("woff2"); }'
+  echo '@font-face { font-family: "C"; src: url(https://fonts.gstatic.com/s/inter/a.woff2) format("woff2"); }'
+  echo '@import "https://fonts.googleapis.com/css?family=Inter";'
+} >> "$tmp/style-site/assets/site.css"
+out=$(python3 "$check" links "$tmp/style-site" 2>&1) \
+  && fail "a style sheet with a missing file and two font hosts passed"
+for finding in 'assets/site.css: fonts/b.woff2 resolves to nothing' \
+  'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
+  'assets/site.css: https://fonts.googleapis.com/css?family=Inter'; do
+  echo "$out" | grep -qF "$finding" || fail "links did not report $finding: $out"
+done
+
 # The prose rules: each rule fires outside a code span and a fenced block and stays quiet inside them, a fence
 # closes only on its own character and length, and a span wrapped across two lines is code on both.
 mkdir -p "$tmp/prose"

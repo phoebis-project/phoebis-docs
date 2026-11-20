@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Read-only checks over the built documentation site.
 
-`links` walks the built site for an internal link or image that resolves to nothing, and for a link whose fragment
-names no heading or anchor on the page it lands on. A root-relative link carries the path that `site_url` in the
-repository's zensical.toml publishes the site under. `prose` holds the mechanical content rules of the site's prose,
-over each file it is given and each Markdown file at each depth of a folder it is given.
+`links` walks the built site for an internal link or image that resolves to nothing, for a link whose fragment names no
+heading or anchor on the page it lands on, and for a style sheet's `url()` or quoted `@import` that resolves to nothing.
+It also reports each page and each style sheet that names one of Google's two font hosts. A root-relative link carries
+the path that `site_url` in the repository's zensical.toml publishes the site under. `prose` holds the mechanical
+content rules of the site's prose, over each file it is given and each Markdown file at each depth of a folder it is
+given.
 """
 import functools
 import html.parser
@@ -18,8 +20,19 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 SITE = BUILD / "site"
 
-# Another host's links are not this script's business.
+# Another host's links are not this script's business, in a page and in a style sheet's `url()` and `@import` alike, and
+# each other value of a style sheet has to resolve to a file of the site as a page's link does. A value at one of
+# Google's font hosts is tested in front of this skip and reported.
 SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
+# The theme asks these two hosts for its faces, which hands Google each reader's address, unless `font = false` in
+# zensical.toml switches the request off. The strict build passes a lost or misspelled setting, so the arm reports a
+# value at either host where it skips each other host.
+FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
+# A `url()` with or without quotes, and an `@import` with a quoted address, which loads its sheet as a `url()` does.
+STYLE_LINK = re.compile(
+    r"""url\(\s*(?P<quote>["']?)(?P<url>.*?)(?P=quote)\s*\)"""
+    r"""|@import\s*(?P<mark>["'])(?P<imported>.*?)(?P=mark)"""
+)
 # The theme's skip link points at a page's first heading, and 404.html, built from no Markdown, has none, so the
 # theme writes `#__skip` there with nothing carrying that id.
 SKIP_LINK = "#__skip"
@@ -37,9 +50,18 @@ def site_prefix(config: pathlib.Path) -> list[str] | None:
     return [segment for segment in path.split("/") if segment]
 
 
+def names_font_host(raw):
+    try:
+        return urllib.parse.urlsplit(raw).hostname in FONT_HOSTS
+    except ValueError:
+        # A malformed address, such as one with an unclosed `[`, names no host. The skip passes another host's malformed
+        # link, so a refusal here must not end the walk.
+        return False
+
+
 class Links(html.parser.HTMLParser):
-    """The hrefs and srcs a page carries, without another host's links, and the ids the site build gave its headings
-    and anchors."""
+    """The hrefs and srcs a page carries and the ids the site build gave its headings and anchors. Of another host's
+    links it keeps the ones at a font host of Google, in a list of their own, and drops the rest."""
 
     def __init__(self):
         super().__init__()
@@ -48,13 +70,17 @@ class Links(html.parser.HTMLParser):
         # `href` has its fragment checked.
         self.hrefs = []
         self.ids = set()
+        self.font_hosts = []
 
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
-            if name in ("href", "src") and value and not value.startswith(SKIPPED):
-                self.found.append(value)
-                if name == "href":
-                    self.hrefs.append(value)
+            if name in ("href", "src") and value:
+                if names_font_host(value):
+                    self.font_hosts.append(value)
+                elif not value.startswith(SKIPPED):
+                    self.found.append(value)
+                    if name == "href":
+                        self.hrefs.append(value)
             if name == "id" and value:
                 self.ids.add(value)
 
@@ -117,19 +143,32 @@ def check_links(site, prefix):
     if not pages:
         print(f"no pages under {site}. Build the site first.")
         return 1
-    dangling = 0
+    findings = 0
     for page in pages:
         parser = parsed(page)
+        for raw in parser.font_hosts:
+            print(f"{page.relative_to(site)}: {raw} names a font host of Google")
+            findings += 1
         for raw in parser.found:
             if not resolves(site, prefix, page, raw):
                 print(f"{page.relative_to(site)}: {raw} resolves to nothing")
-                dangling += 1
+                findings += 1
         for raw in parser.hrefs:
             target = fragment_missing_from(site, prefix, page, raw)
             if target is not None:
                 print(f"{page.relative_to(site)}: {raw} names no heading or anchor in {target.relative_to(site)}")
-                dangling += 1
-    return 1 if dangling else 0
+                findings += 1
+    # A browser reads a style sheet's value against the sheet's folder, whichever page loads the sheet.
+    for sheet in sorted(site.rglob("*.css")):
+        for match in STYLE_LINK.finditer(sheet.read_text(encoding="utf-8")):
+            raw = match["url"] if match["imported"] is None else match["imported"]
+            if names_font_host(raw):
+                print(f"{sheet.relative_to(site)}: {raw} names a font host of Google")
+                findings += 1
+            elif not raw.startswith(SKIPPED) and not resolves(site, prefix, sheet, raw):
+                print(f"{sheet.relative_to(site)}: {raw} resolves to nothing")
+                findings += 1
+    return 1 if findings else 0
 
 
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")

@@ -8,7 +8,7 @@ repo_name = "phoebis-project"
 # No nav: scripts/assemble.py writes it from sources.toml and each product's docs/nav.toml.
 docs_dir = "docs"
 site_dir = "site"
-extra_css = ["assets/logo.css"]
+extra_css = ["assets/fonts.css", "assets/logo.css"]
 
 [project.validation]
 invalid_links = true
@@ -20,6 +20,9 @@ custom_dir = "overrides"
 # The mark and the favicon are the router's files, which the assembly copies with the router's pages.
 favicon = "router/assets/favicon.svg"
 logo = "router/assets/phoebis-router-light.svg"
+# The theme would load its two faces from Google's hosts. The site serves its own copies, which docs/assets/fonts.css
+# names together with the two variables that the theme sets with its request.
+font = false
 features = [
   "content.code.copy",
   "content.code.select",

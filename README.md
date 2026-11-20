@@ -1,8 +1,8 @@
 # Phoebis documentation
 
 This repository builds the one documentation site of Phoebis Router, Phoebis Companion and Phoebis Proxy. It holds the
-site's configuration, its scripts, its start page, its theme and its workflows. The pages of a product stay in that
-product's repository, and each build copies them into one tree. The site is published at
+site's configuration, its fonts, its scripts, its start page, its theme and its workflows. The pages of a product stay
+in that product's repository, and each build copies them into one tree. The site is published at
 <https://phoebis-project.github.io/phoebis-docs/>.
 
 ## What a product repository holds
@@ -79,11 +79,13 @@ python3 scripts/check-site.py links
 python3 scripts/check-site.py prose build/docs README.md ../phoebis/README.md ../phoebis-companion/README.md ../phoebis-proxy/README.md
 ```
 
-`links` walks the built site for an internal link or an image that resolves to nothing and for a fragment that names no
-heading or anchor on the page it lands on. `prose` holds each page of the build tree and the four READMEs to the site's
-writing rules, which apply to the pages of each product: no bare `api_key` outside a code span, no em-dash and no
-en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a prose line, and no word from
-its list of words a reference page does not use. With a path, `prose` reads that file or walks that folder.
+`links` walks the built site for an internal link or an image that resolves to nothing, for a fragment that names no
+heading or anchor on the page it lands on, for a `url()` or an `@import` of a style sheet that resolves to nothing and
+for a page or a style sheet that names one of Google's two font hosts. `prose` holds each page of the build tree and the
+four READMEs to the site's writing rules, which apply to the pages of each product: no bare `api_key` outside a code
+span, no em-dash and no en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a
+prose line, and no word from its list of words a reference page does not use. With a path, `prose` reads that file or
+walks that folder.
 
 A second build tree, such as one for a strict build while the preview serves `build/`, comes from two arguments:
 `scripts/assemble.py --out DIR` writes into that directory under the same rule as `build/`, and `scripts/check-site.py
@@ -156,6 +158,29 @@ are the router's files `docs/site/assets/favicon.svg`, `docs/site/assets/phoebis
 Each step waits for the green `Documentation` run of the step before it, since a build reads the other products at their
 newest green commits.
 
+## The fonts
+
+The site serves its two faces itself, so no page asks another host for a font. `font = false` in `zensical.toml`
+switches off the theme's request to Google's two font hosts, and `docs/assets/fonts.css` names the files and sets the
+two variables that the theme's font stacks read. The files are static WOFF2 files, unchanged from each project's
+release:
+
+| Face | Release | Files |
+| --- | --- | --- |
+| Inter | [4.1](https://github.com/rsms/inter/releases/tag/v4.1), the folder `web/` of `Inter-4.1.zip` | the weights 300, 400, 500 and 700, each upright and italic, in `docs/assets/fonts/inter/` |
+| JetBrains Mono | [2.304](https://github.com/JetBrains/JetBrainsMono/releases/tag/v2.304), the folder `fonts/webfonts/` of `JetBrainsMono-2.304.zip` | the weights 400 and 700, each upright and italic, in `docs/assets/fonts/jetbrains-mono/` |
+
+These twelve are the faces that the theme's own request names. Each folder holds the license text of its release,
+`LICENSE.txt` for Inter and `OFL.txt` for JetBrains Mono, and the site serves it beside the files. `links` fails on a
+page or a style sheet that names one of Google's two font hosts and on a `url()` of a style sheet that resolves to no
+file of the site. So a build does not pass with the setting lost or with a font file that the style sheet misnames.
+
+To take a new version of a face, replace the files of its folder with the files of that release, the license text among
+them, and change its row above.
+
 ## License
 
-Released under the MIT license. See [`LICENSE`](LICENSE) for the full text.
+Released under the MIT license. See [`LICENSE`](LICENSE) for the full text. The font files in `docs/assets/fonts/` are
+not under it. Each face is under the SIL Open Font License 1.1, and its folder holds the text:
+[`LICENSE.txt`](docs/assets/fonts/inter/LICENSE.txt) for Inter and [`OFL.txt`](docs/assets/fonts/jetbrains-mono/OFL.txt)
+for JetBrains Mono.
