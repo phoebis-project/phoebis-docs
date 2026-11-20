@@ -63,6 +63,9 @@ ended() {
 running() {
   printf '{"id":%s,"event":"push","head_branch":"main","head_sha":"%s","status":"in_progress","conclusion":null}' "$@"
 }
+queued() {
+  printf '{"id":%s,"event":"push","head_branch":"main","head_sha":"%s","status":"queued","conclusion":null}' "$@"
+}
 # The runs of a product's docs.yml, the newest first, as one answer to a read of them.
 runs() {
   local path list
@@ -215,12 +218,20 @@ one_green example/beta 201 "$cb"
 pick --own "alpha=$c1"
 ends 0 "alpha=$c1
 beta=$cb"
+# A line feed in the caller's commit writes a second assignment to the step's output file, and the later of two
+# assignments of one name wins, so such a value replaces the script's own line for a product in front of the caller's.
+# The case writes no answer, so a script that takes the value and reads fails by its exit status.
+fresh "the caller's commit with a line feed and a second assignment"
+pick --own "alpha=$c1"$'\n'"beta=$c2"
+ends 2 ""
 
 # Right after a push the newest run is still in progress, and a selection that reads once and counts that run as red
 # publishes the commit before the pushed one, which no later deploy follows. The run ends green at the second read, so
-# this is also the case whose result is the newest run, which a selection that passes over each newest run misses.
+# this is also the case whose result is the newest run, which a selection that passes over each newest run misses. At
+# the first read the run waits for a runner and reads queued, so a selection that waits for a status of in_progress
+# alone passes over it at once.
 fresh "a run in progress that ends green within the wait"
-runs example/alpha "$(running 101 "$c1")" "$(ended 102 push main "$c2" success)"
+runs example/alpha "$(queued 101 "$c1")" "$(ended 102 push main "$c2" success)"
 runs example/alpha "$(ended 101 push main "$c1" success)" "$(ended 102 push main "$c2" success)"
 compared example/alpha "$c1" identical
 compared example/alpha "$c2" ahead

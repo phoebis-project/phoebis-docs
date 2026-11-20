@@ -162,11 +162,21 @@ def seconds(least: int):
     return parse
 
 
+def own_pair(value: str) -> tuple[str, str]:
+    """The argument of --own as its folder and its commit. A line feed in the commit would write an assignment of its
+    own to the step's output file and replace the script's line for a product in front of the caller's, so the commit
+    holds no white space. The test stands here, since --checkout shares folder_pair and its path can hold a blank."""
+    folder, commit = folder_pair(value, "COMMIT")
+    if any(character.isspace() for character in commit):
+        raise argparse.ArgumentTypeError(f"{value!r} is no FOLDER=COMMIT, since its commit holds white space")
+    return folder, commit
+
+
 def main(argv: list[str]) -> int:
     parser = command_parser("green-commits.py", USAGE, __doc__)
     parser.add_argument(
         "--own",
-        type=lambda value: folder_pair(value, "COMMIT"),
+        type=own_pair,
         metavar="FOLDER=COMMIT",
         help="the caller's product, read at its own commit",
     )
