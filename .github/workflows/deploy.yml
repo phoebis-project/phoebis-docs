@@ -24,9 +24,10 @@ jobs:
     # main stays green until then. No revision that builds the products' unchecked heads tests this variable, so a run
     # of one, started again, publishes none of them. The site is built from this repository's main and from each
     # product's newest green commit, so a start from another branch deploys nothing. The build uploads the artifact
-    # under this same condition and names the repository for its own reason, so the job names it too: a fork's deploy
-    # would otherwise run and find no artifact. configure-pages lives here rather than in the build because it fails on
-    # a repository where Pages is not enabled.
+    # under this condition and its input deploy, and it names the repository for its own reason, so the job names it
+    # too: a fork's deploy would otherwise run and find no artifact. The input stays out of this condition, so a deploy
+    # that lost it runs this job, which ends red on the missing artifact. configure-pages lives here rather than in the
+    # build because it fails on a repository where Pages is not enabled.
     if: vars.DOCS_PUBLISH == '1' && github.ref == 'refs/heads/main' && github.repository == 'phoebis-project/phoebis-docs'
     needs: site
     permissions:
