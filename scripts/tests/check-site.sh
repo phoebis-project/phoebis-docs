@@ -128,6 +128,13 @@ for finding in 'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
   echo "$out" | grep -qF "$finding" || fail "links did not report $finding: $out"
 done
 
+# urlsplit refuses an address with an unclosed `[`, and such a link at another host names no font host, so the skip
+# passes it as another host's link. A host test that lets the refusal through ends the link check with a traceback.
+mkdir -p "$tmp/malformed-site"
+echo '<a href="https://[x">x</a>' > "$tmp/malformed-site/index.html"
+out=$(python3 "$check" links "$tmp/malformed-site" 2>&1) || fail "a link to a malformed address was refused: $out"
+[ -z "$out" ] || fail "links printed a line for a link to a malformed address: $out"
+
 # The prose rules: each rule fires outside a code span and a fenced block and stays quiet inside them, a fence
 # closes only on its own character and length, and a span wrapped across two lines is code on both.
 mkdir -p "$tmp/prose"

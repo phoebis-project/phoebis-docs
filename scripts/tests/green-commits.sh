@@ -241,10 +241,17 @@ runs example/alpha "$(ended 101 push main "$c1" success)" "$(ended 102 push main
 compared example/alpha "$c1" identical
 compared example/alpha "$c2" ahead
 one_green example/beta 201 "$cb"
+# A script that counts the seconds of its wait and does not sleep them ends the deploy's wait in the time of its reads,
+# so the deploy reads before the pushed commit's run ends and publishes the commit before it. No other case tells such a
+# script from one that sleeps. The bound has one side, on a clock that does not go back, and a sleep does not end early,
+# so a script that sleeps passes it on each run.
+start=$(python3 -c 'import time; print(time.monotonic_ns())')
 pick --wait 1 --every 1
+took=$(( ($(python3 -c 'import time; print(time.monotonic_ns())') - start) / 1000000 ))
 ends 0 "alpha=$c2
 beta=$cb"
 logged 101
+[ "$took" -ge 1000 ] || fail "$name: the script took $took ms, where one second or more was due"
 
 # A script that keeps a comparison's answer for its whole run reads no rewrite of main that falls into the wait, so it
 # can build a commit that main dropped in that time. Each script compares the newest green commit in both rounds, so
