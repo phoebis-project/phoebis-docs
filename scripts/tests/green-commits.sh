@@ -284,6 +284,21 @@ pick --wait 1 --every 1
 ends 0 "alpha=$c1
 beta=$cb"
 
+# While a run of alpha is in progress, the script reads beta's runs no more, so a rewrite of beta's main during the wait
+# shows in no read of them. A script that prints beta's commit without comparing it once more behind the wait prints a
+# commit that main dropped while another product's run was in progress. Beta's commit is identical to main at the first
+# comparison and has diverged from it at the second.
+fresh "a commit that main drops while another product waits"
+runs example/alpha "$(running 101 "$c1")"
+runs example/alpha "$(ended 101 push main "$c1" success)"
+compared example/alpha "$c1" identical
+runs example/beta "$(ended 201 push main "$cb" success)"
+compared example/beta "$cb" identical
+compared example/beta "$cb" diverged
+pick --wait 2 --every 1
+ends 1 ""
+logged example/beta "$cb"
+
 # --every 0 reads without a pause, and without an end while a run is in progress. The case writes no answer, so a script
 # that takes the value and reads fails by its exit status.
 fresh "a refused value of the interval"

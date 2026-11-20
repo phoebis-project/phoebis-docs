@@ -8,8 +8,9 @@ commits that a rewrite of main dropped. Each read is one call of `gh api`, which
 
 `--own FOLDER=COMMIT` hands the caller's product through at its own commit, and the script reads none of its runs. With
 `--wait`, the script reads a product again every `--every` seconds while a run in progress stands above its newest green
-run, until it has slept `--wait` seconds in all, and then passes over that run with a notice. A product without a green
-run stops the script, or reads main with `--or-main`. A failed read stops it either way.
+run, until it has slept `--wait` seconds in all, and then passes over that run with a notice. After a wait, it compares
+each commit that it took before its last sleep with main once more and stops where main no longer holds one. A product
+without a green run stops the script, or reads main with `--or-main`. A failed read stops it either way.
 
 On success the script prints one `folder=commit` line per product to its standard output, in the order of sources.toml
 and all at once, and exits 0. A stop prints none of them and exits 1. Each other line goes to the error output, which is
@@ -213,9 +214,12 @@ def main(argv: list[str]) -> int:
         else:
             pending.append(source)
     slept = 0
+    # A rewrite of main during a sleep shows in no later read of a product that settled before it. The last round
+    # compared its own commits, and a product read at main has no commit to compare.
+    before_sleep = []
     try:
         while pending:
-            waiting = []
+            waiting, taken = [], []
             for source in pending:
                 runs = read_runs(source.repository)
                 newest, running, green = weigh(source.repository, runs)
@@ -225,10 +229,18 @@ def main(argv: list[str]) -> int:
                 commits[source.folder] = settle(
                     source.folder, source.repository, runs, newest, green, slept, args.or_main
                 )
+                if green is not None:
+                    taken.append(source)
             pending = waiting
             if pending:
+                before_sleep += taken
                 time.sleep(args.every)
                 slept += args.every
+        for source in before_sleep:
+            commit = commits[source.folder]
+            if not held(source.repository, commit):
+                raise Stop(f"::error::{source.repository}: {BRANCH} no longer holds {commit}, which the script took"
+                           " before its wait, so the deploy stops")
     except Stop as stop:
         say(str(stop))
         return 1

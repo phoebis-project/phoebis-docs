@@ -123,7 +123,9 @@ The `Deploy` workflow differs from each other build in two cases:
   deploy from the last job of its own `Documentation` run, which is seconds from its end at that moment. When the time
   is over, the script takes the newest green commit below that run and prints a notice that names the product's newest
   run. A run that was passed over starts a deploy of its own once it ends green. The run that started this deploy does
-  not, so its commit then waits for the next start of a deploy. Each other build waits for no run.
+  not, so its commit then waits for the next start of a deploy. After a wait, the script compares each commit that it
+  took before its last sleep with `main` once more, and the deploy stops where `main` no longer holds one. Each other
+  build waits for no run.
 - A product with no green run on `main` among its 100 newest. The deploy stops, and the site keeps its last state. Each
   other build calls the script with `--or-main`, so the `Documentation` runs of the other products and the pull requests
   of this repository read that product at `main`, with a notice. Such a build publishes nothing, and two products
