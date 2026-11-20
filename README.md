@@ -93,8 +93,8 @@ links DIR/site` reads the site built there.
 
 Each build reads this repository at `main`, the caller's product at the caller's commit, and each other product at its
 newest commit on `main` whose `Documentation` run ended green. A pull request of this repository reads its own commit
-and each product that way. So a commit that failed a check of its own repository is not published, and no other build
-reads it, with one exception: a product with no green run, the second case below. `scripts/green-commits.py` picks the
+and each product that way. So a product's commit whose `Documentation` run failed is not published. No other build reads
+it either, with one exception: a product with no green run, the second case below. `scripts/green-commits.py` picks the
 commits, as a step of `build.yml`:
 
 ```sh
@@ -126,10 +126,10 @@ The `Deploy` workflow differs from each other build in two cases:
   publishes nothing, and two products without a green run could otherwise never get one.
 
 A build also stops where a read fails and where the workflow gets no token for it. A failed read prints the repository
-and the path with GitHub's status and message. `HTTP 403` with `Resource not accessible by integration` says that the
-token lacks read access to Actions or to contents, and `HTTP 404` that the token does not reach the repository or that
-the repository holds no `docs.yml`. The workflow gets no token where the GitHub App behind `DOCS_APP_CLIENT_ID` has lost
-one of the two permissions.
+and the path, and GitHub's status and message where GitHub answered. `HTTP 403` with `Resource not accessible by
+integration` says that the token lacks read access to Actions or to contents, and `HTTP 404` that the token does not
+reach the repository or that the repository holds no `docs.yml`. The workflow gets no token where the GitHub App behind
+`DOCS_APP_CLIENT_ID` has lost one of the two permissions.
 
 A run that failed for a reason outside its commit stays red until someone starts it again. That is the case for a commit
 that links to a page which another product's newest green commit does not hold yet: once that product's run is green,
