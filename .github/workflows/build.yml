@@ -3,8 +3,12 @@ on:
   pull_request:
   workflow_call:
     inputs:
+      deploy:
+        description: True for the deploy, which stops on a product without a green run and waits for a run in progress.
+        type: boolean
+        default: false
       product:
-        description: The caller's folder in sources.toml. Empty builds each product at main.
+        description: The caller's folder in sources.toml. Empty reads each product at its newest green commit.
         type: string
         default: ""
       ref:
@@ -27,17 +31,18 @@ jobs:
       # repository.
       DOCS_CREDENTIAL: ${{ vars.DOCS_APP_CLIENT_ID != '' && secrets.DOCS_APP_PRIVATE_KEY != '' }}
     steps:
-      # A caller that misnames its product would build each product at main and pass without its own change.
+      # A caller that misnames its product would build that product at its newest green commit and pass without its own
+      # change.
       - if: inputs.product != '' && !contains(fromJSON('["companion", "proxy", "router"]'), inputs.product)
         run: |
           echo "the product input names no folder of sources.toml"
           exit 1
-      # So would a caller that names its product and no commit, since an empty ref reads as main below.
+      # So would a caller that names its product and no commit, since the selection then has no commit to hand through.
       - if: inputs.product != '' && inputs.ref == ''
         run: |
           echo "the ref input is empty, and a product's build needs the caller's commit"
           exit 1
-      # And so would a caller that names a commit and no product, since no checkout below reads a ref without one.
+      # And so would a caller that names a commit and no product, since the selection hands it on only with a product.
       - if: inputs.product == '' && inputs.ref != ''
         run: |
           echo "the product input is empty, and the ref input names a product's commit"
@@ -48,9 +53,16 @@ jobs:
         with:
           client-id: ${{ vars.DOCS_APP_CLIENT_ID }}
           owner: phoebis-project
+          permission-actions: read
           permission-contents: read
           private-key: ${{ secrets.DOCS_APP_PRIVATE_KEY }}
           repositories: phoebis,phoebis-companion,phoebis-docs,phoebis-proxy
+      # Where the App lacks a permission asked for above, the token step fails with the action's own error. This line
+      # names the App's variable and the two permissions, so the reader of the red run knows what to grant.
+      - if: failure() && steps.app.conclusion == 'failure'
+        run: |
+          echo "::error::No token for the build. The GitHub App behind DOCS_APP_CLIENT_ID needs read access to" \
+            "Actions and to contents of phoebis, phoebis-companion, phoebis-docs and phoebis-proxy."
       # A called workflow runs in the caller's repository, so this checkout names its own. A pull request of this
       # repository builds its own commit. Each other run builds main here: a product's call, and a deploy, whose
       # second run would otherwise publish the pages of its first commit over newer ones.
@@ -60,25 +72,46 @@ jobs:
           ref: ${{ github.repository == 'phoebis-project/phoebis-docs' && github.event_name == 'pull_request' && github.sha || 'main' }}
           repository: phoebis-project/phoebis-docs
           token: ${{ steps.app.outputs.token || github.token }}
+      # OWN hands the caller's commit through, since a product's run checks its own change. The inputs reach the script
+      # through the environment, so no caller's value becomes text of the shell line. The script prints its lines last
+      # and all at once, so a stop leaves no output and a red step.
+      - id: commits
+        env:
+          DEPLOY: ${{ inputs.deploy }}
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          OWN: ${{ inputs.product != '' && format('{0}={1}', inputs.product, inputs.ref) || '' }}
+        run: |
+          arguments=()
+          if [ -n "$OWN" ]; then arguments+=(--own "$OWN"); fi
+          if [ "$DEPLOY" = true ]; then arguments+=(--wait 300 --every 10); else arguments+=(--or-main); fi
+          python3 scripts/green-commits.py "${arguments[@]}" >> "$GITHUB_OUTPUT"
+      # actions/checkout reads an empty ref as the default branch, so a selection that ended with exit 0 and named no
+      # commit for a product would build that product at main and pass.
+      - if: >-
+          steps.commits.outputs.companion == '' || steps.commits.outputs.proxy == '' ||
+          steps.commits.outputs.router == ''
+        run: |
+          echo "the selection named no commit for a product, and an empty ref would read main"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: checkouts/router
           persist-credentials: false
-          ref: ${{ inputs.product == 'router' && inputs.ref || 'main' }}
+          ref: ${{ steps.commits.outputs.router }}
           repository: phoebis-project/phoebis
           token: ${{ steps.app.outputs.token || github.token }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: checkouts/companion
           persist-credentials: false
-          ref: ${{ inputs.product == 'companion' && inputs.ref || 'main' }}
+          ref: ${{ steps.commits.outputs.companion }}
           repository: phoebis-project/phoebis-companion
           token: ${{ steps.app.outputs.token || github.token }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: checkouts/proxy
           persist-credentials: false
-          ref: ${{ inputs.product == 'proxy' && inputs.ref || 'main' }}
+          ref: ${{ steps.commits.outputs.proxy }}
           repository: phoebis-project/phoebis-proxy
           token: ${{ steps.app.outputs.token || github.token }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -86,6 +119,7 @@ jobs:
           python-version: "3.x"
       - run: scripts/tests/assemble.sh
       - run: scripts/tests/check-site.sh
+      - run: scripts/tests/green-commits.sh
       - run: scripts/tests/preview.sh
       - run: python3 scripts/assemble.py --checkout router=checkouts/router --checkout companion=checkouts/companion --checkout proxy=checkouts/proxy
       # Pinned to the version the site is written and checked against. A newer Zensical may warn on syntax this one
@@ -98,7 +132,7 @@ jobs:
       # A run's artifact is open to each reader of the run's repository, and the site holds the pages of each product.
       # So the upload runs under the condition of deploy.yml's deploy job, the one job that reads the artifact. The
       # repository is named since a called workflow reads the caller's variables.
-      - if: vars.DOCS_PAGES == '1' && github.ref == 'refs/heads/main' && github.repository == 'phoebis-project/phoebis-docs'
+      - if: vars.DOCS_PUBLISH == '1' && github.ref == 'refs/heads/main' && github.repository == 'phoebis-project/phoebis-docs'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/site
