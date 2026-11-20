@@ -28,10 +28,12 @@ SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
 # zensical.toml switches the request off. The strict build passes a lost or misspelled setting, so the arm reports a
 # value at either host where it skips each other host.
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
-# A `url()` with or without quotes, and an `@import` with a quoted address, which loads its sheet as a `url()` does.
+# A `url()` with or without quotes, and an `@import` with a quoted address, which loads its sheet as a `url()` does. CSS
+# reads `URL(` and `@IMPORT` as it reads the lower-case forms, so the match ignores case.
 STYLE_LINK = re.compile(
     r"""url\(\s*(?P<quote>["']?)(?P<url>.*?)(?P=quote)\s*\)"""
-    r"""|@import\s*(?P<mark>["'])(?P<imported>.*?)(?P=mark)"""
+    r"""|@import\s*(?P<mark>["'])(?P<imported>.*?)(?P=mark)""",
+    re.IGNORECASE,
 )
 # The theme's skip link points at a page's first heading, and 404.html, built from no Markdown, has none, so the
 # theme writes `#__skip` there with nothing carrying that id.

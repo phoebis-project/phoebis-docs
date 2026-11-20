@@ -104,22 +104,26 @@ echo "$out" | grep -qF "index.html: https://fonts.googleapis.com/css?family=Inte
   || fail "wrong finding for a page that links a font host of Google: $out"
 
 # A font file that a style sheet misnames shows the reader a fallback face, and no page's link names that file. A style
-# sheet's url() or @import can also load from Google's font hosts with no link to them on a page. The passing half holds
-# the base of the read, since a url() read against the site's top refuses it.
+# sheet's url() or @import can also load from Google's font hosts with no link to them on a page, and CSS reads URL( as
+# it reads url(. The build reads the exit status alone, so each kind of report gets a run in which it is the one
+# finding, and a report that prints its line without counting it fails there. The passing run holds the base of the
+# read, since a url() read against the site's top refuses it.
 mkdir -p "$tmp/style-site/assets/fonts"
 : > "$tmp/style-site/index.html"
 : > "$tmp/style-site/assets/fonts/a.woff2"
 echo '@font-face { font-family: "A"; src: url("fonts/a.woff2") format("woff2"); }' > "$tmp/style-site/assets/site.css"
 out=$(python3 "$check" links "$tmp/style-site" 2>&1) || fail "a style sheet whose url() resolves was refused: $out"
+echo '@font-face { font-family: "B"; src: url("fonts/b.woff2") format("woff2"); }' >> "$tmp/style-site/assets/site.css"
+out=$(python3 "$check" links "$tmp/style-site" 2>&1) && fail "a style sheet that names a missing file passed"
+echo "$out" | grep -qF 'assets/site.css: fonts/b.woff2 resolves to nothing' \
+  || fail "links did not report the missing file of a style sheet: $out"
 {
-  echo '@font-face { font-family: "B"; src: url("fonts/b.woff2") format("woff2"); }'
-  echo '@font-face { font-family: "C"; src: url(https://fonts.gstatic.com/s/inter/a.woff2) format("woff2"); }'
+  echo '@font-face { font-family: "A"; src: url("fonts/a.woff2") format("woff2"); }'
+  echo '@font-face { font-family: "C"; src: URL(https://fonts.gstatic.com/s/inter/a.woff2) format("woff2"); }'
   echo '@import "https://fonts.googleapis.com/css?family=Inter";'
-} >> "$tmp/style-site/assets/site.css"
-out=$(python3 "$check" links "$tmp/style-site" 2>&1) \
-  && fail "a style sheet with a missing file and two font hosts passed"
-for finding in 'assets/site.css: fonts/b.woff2 resolves to nothing' \
-  'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
+} > "$tmp/style-site/assets/site.css"
+out=$(python3 "$check" links "$tmp/style-site" 2>&1) && fail "a style sheet that loads from two font hosts passed"
+for finding in 'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
   'assets/site.css: https://fonts.googleapis.com/css?family=Inter'; do
   echo "$out" | grep -qF "$finding" || fail "links did not report $finding: $out"
 done

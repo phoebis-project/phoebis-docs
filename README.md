@@ -81,8 +81,8 @@ python3 scripts/check-site.py prose build/docs README.md ../phoebis/README.md ..
 
 `links` walks the built site for an internal link or an image that resolves to nothing, for a fragment that names no
 heading or anchor on the page it lands on, for a `url()` or an `@import` of a style sheet that resolves to nothing and
-for a page or a style sheet that names one of Google's two font hosts. `prose` holds each page of the build tree and the
-four READMEs to the site's writing rules, which apply to the pages of each product: no bare `api_key` outside a code
+for a link of a page or a style sheet to one of Google's two font hosts. `prose` holds each page of the build tree and
+the four READMEs to the site's writing rules, which apply to the pages of each product: no bare `api_key` outside a code
 span, no em-dash and no en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a
 prose line, and no word from its list of words a reference page does not use. With a path, `prose` reads that file or
 walks that folder.
@@ -172,7 +172,7 @@ release:
 
 These twelve are the faces that the theme's own request names. Each folder holds the license text of its release,
 `LICENSE.txt` for Inter and `OFL.txt` for JetBrains Mono, and the site serves it beside the files. `links` fails on a
-page or a style sheet that names one of Google's two font hosts and on a `url()` of a style sheet that resolves to no
+link of a page or a style sheet to one of Google's two font hosts and on a `url()` of a style sheet that resolves to no
 file of the site. So a build does not pass with the setting lost or with a font file that the style sheet misnames.
 
 To take a new version of a face, replace the files of its folder with the files of that release, the license text among
