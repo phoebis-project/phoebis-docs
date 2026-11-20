@@ -1,6 +1,6 @@
-/* zensical.toml switches off the theme's request to Google's two font hosts, and with it the two variables below,
-   which the theme's font stacks read. The rules name the faces of that request. Each file is unchanged from its
-   project's release, and each folder holds that release's license text. */
+/* zensical.toml switches off the theme's request to Google's two font hosts, and with it the two variables below, which
+   the theme's font stacks read. The rules name the faces of that request. Each file is unchanged from its project's
+   release, and each folder holds that release's license text. */
 :root {
   --md-text-font: "Inter";
   --md-code-font: "JetBrains Mono";
