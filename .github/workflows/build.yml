@@ -31,18 +31,21 @@ jobs:
       # repository.
       DOCS_CREDENTIAL: ${{ vars.DOCS_APP_CLIENT_ID != '' && secrets.DOCS_APP_PRIVATE_KEY != '' }}
     steps:
-      # A caller that misnames its product would build that product at its newest green commit and pass without its own
-      # change.
+      # The selection would refuse a product that sources.toml does not name, but behind the token step and with a usage
+      # line about --own, an argument no caller writes. This guard stops such a caller in front of the token step, with
+      # a line that names the input.
       - if: inputs.product != '' && !contains(fromJSON('["companion", "proxy", "router"]'), inputs.product)
         run: |
           echo "the product input names no folder of sources.toml"
           exit 1
-      # So would a caller that names its product and no commit, since the selection then has no commit to hand through.
+      # The selection would refuse a product without a commit in the same place and words, so this guard stops that
+      # caller in front of the token step, with a line that names the empty input.
       - if: inputs.product != '' && inputs.ref == ''
         run: |
           echo "the ref input is empty, and a product's build needs the caller's commit"
           exit 1
-      # And so would a caller that names a commit and no product, since the selection hands it on only with a product.
+      # A commit without a product leaves OWN empty, so the selection would read each product at its newest green commit
+      # and the build would pass without the caller's change.
       - if: inputs.product == '' && inputs.ref != ''
         run: |
           echo "the product input is empty, and the ref input names a product's commit"
