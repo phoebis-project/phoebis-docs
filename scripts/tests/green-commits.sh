@@ -25,12 +25,12 @@ printf '[[source]]\nfolder = "beta"\nrepository = "example/beta"\ntitle = "Beta"
 cat > "$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -euo pipefail
-refuse() { echo "$2" >> "$(dirname "$0")/../refused"; echo "$2" >&2; exit "$1"; }
+stray() { echo "$2" >> "$(dirname "$0")/../stray"; echo "$2" >&2; exit "$1"; }
 if [ "$#" != 4 ] || [ "$1" != api ] || [ "$2" != --method ] || [ "$3" != GET ]; then
-  refuse 2 "the case's gh takes api --method GET <path> alone, not: $*"
+  stray 2 "the case's gh takes api --method GET <path> alone, not: $*"
 fi
 dir="$(dirname "$0")/../answers/$(printf '%s' "$4" | sha256sum | cut -d ' ' -f 1)"
-[ -d "$dir" ] || refuse 1 "the case wrote no answer for $4"
+[ -d "$dir" ] || stray 1 "the case wrote no answer for $4"
 call=$(( $(cat "$dir/calls") + 1 ))
 echo "$call" > "$dir/calls"
 [ -e "$dir/$call.exit" ] || call=$(cat "$dir/count")
@@ -81,8 +81,8 @@ refused() {
 # The product beside the one a case is about: one complete green run of a push to main on the head of main.
 one_green() { runs "$1" "$(ended "$2" push main "$3" success)"; compared "$1" "$3" identical; }
 
-# Each case starts from no answer and no refused call, so nothing of an earlier case can satisfy it or fail it.
-fresh() { name=$1; rm -rf "$tmp/answers" "$tmp/refused"; mkdir -p "$tmp/answers"; }
+# Each case starts from no answer and no stray call, so nothing of an earlier case can satisfy it or fail it.
+fresh() { name=$1; rm -rf "$tmp/answers" "$tmp/stray"; mkdir -p "$tmp/answers"; }
 pick() {
   status=0
   out=$(PATH="$tmp/bin:$PATH" python3 "$repo/scripts/green-commits.py" "$@" 2> "$tmp/err") || status=$?
@@ -91,7 +91,7 @@ pick() {
 ends() {
   [ "$status" = "$1" ] || fail "$name: exit $status, where $1 was due: $err"
   [ "$out" = "$2" ] || fail "$name: the standard output was '$out', where '$2' was due"
-  [ ! -e "$tmp/refused" ] || fail "$name: the case's gh refused a call: $(cat "$tmp/refused")"
+  [ ! -e "$tmp/stray" ] || fail "$name: a stray call reached the case's gh: $(cat "$tmp/stray")"
 }
 # Each value has to stand as a word of its own, so an id does not match inside a longer number.
 logged() {

@@ -3,10 +3,9 @@
 
 `links` walks the built site for an internal link or image that resolves to nothing, for a link whose fragment names no
 heading or anchor on the page it lands on, and for a style sheet's `url()` or quoted `@import` that resolves to nothing.
-It also reports each page and each style sheet that names one of Google's two font hosts. A root-relative link carries
-the path that `site_url` in the repository's zensical.toml publishes the site under. `prose` holds the mechanical
-content rules of the site's prose, over each file it is given and each Markdown file at each depth of a folder it is
-given.
+It also reports each link of a page or a style sheet to one of Google's two font hosts. A root-relative link carries the
+path that `site_url` in the repository's zensical.toml publishes the site under. `prose` holds the mechanical content
+rules of the site's prose, over each file it is given and each Markdown file at each depth of a folder it is given.
 """
 import functools
 import html.parser
@@ -29,11 +28,13 @@ SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
 # value at either host where it skips each other host.
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 # A `url()` with or without quotes, and an `@import` with a quoted address, which loads its sheet as a `url()` does. CSS
-# reads `URL(` and `@IMPORT` as it reads the lower-case forms, so the match ignores case.
+# folds the case of ASCII letters alone, so it reads `URL(` and `@IMPORT` as the lower-case forms and does not read
+# `@ımport` or `@İmport` as an `@import`. Python's default folding reads `ı` and `İ` as an `i`, so the match folds ASCII
+# letters alone, and its `\s` then reads ASCII whitespace, which holds each whitespace character of CSS.
 STYLE_LINK = re.compile(
     r"""url\(\s*(?P<quote>["']?)(?P<url>.*?)(?P=quote)\s*\)"""
     r"""|@import\s*(?P<mark>["'])(?P<imported>.*?)(?P=mark)""",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 # The theme's skip link points at a page's first heading, and 404.html, built from no Markdown, has none, so the
 # theme writes `#__skip` there with nothing carrying that id.
