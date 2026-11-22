@@ -22,6 +22,9 @@ trap cleanup EXIT
 # A case that runs the command with another PATH reaches the interpreter by its path.
 python=$(command -v python3)
 fail() { echo "FAIL $1" >&2; exit 1; }
+# ended reads an empty state as an ended process, so on a host without ps each wait for an end answers at once. A case
+# of a SIGTERM then passes with no handler in the command, and the wait behind it can block on the stand-in's sleep.
+command -v ps > /dev/null || fail "the host has no ps, which the cases read to see a preview end"
 
 # The preview imports the assembly, so a throwaway repository takes both scripts.
 repository() {
