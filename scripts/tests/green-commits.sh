@@ -3,8 +3,8 @@
 # green and whose commit main still holds, with each test read from the run and the comparison themselves. A deploy has
 # to wait for a run in progress and to stop with an empty standard output where a product has no green run, while each
 # other build reads such a product at main. A failed read stops each build. The script reads the API through gh and
-# finds its repository from its own path, so each case runs a copy of it in a throwaway repository with a gh of the
-# case's own first on the PATH.
+# finds its repository from its own path, so each case runs a copy of it in a throwaway repository, with a gh of the
+# case's own first on the PATH, and the case of a host without gh with none on it.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")/../.." && pwd)
