@@ -22,7 +22,6 @@ import tomllib
 from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, shape, source_roots
 
 USAGE = "preview.py [--checkout FOLDER=PATH ...] [-- ZENSICAL_SERVE_ARG ...]"
-ZENSICAL = "zensical==0.0.62"
 # What a source raises while its writer is in the middle of a save: a file that is gone again, a TOML file that is
 # half written, and a file that reads but holds no whole entry yet, which its reader refuses with a ValueError.
 UNREAD = (OSError, ValueError)
@@ -48,6 +47,19 @@ def local_checkouts(root: pathlib.Path, flags: list[tuple[str, pathlib.Path]]) -
                 )
             named[folder] = root / path
     return named | dict(flags)
+
+
+def pinned(root: pathlib.Path) -> str:
+    """The specification that `pipx run` takes: the one line of requirements.txt. A ValueError names the file where it
+    holds no line, more than one or a comment, since the build installs from the same file and both have to run one
+    Zensical."""
+    text = (root / "requirements.txt").read_text(encoding="utf-8").strip()
+    count = len([line for line in text.splitlines() if line.strip()])
+    if count != 1:
+        raise ValueError(f"requirements.txt holds {count} lines, and the preview hands pipx its one line")
+    if "#" in text:
+        raise ValueError("requirements.txt holds a comment, and the preview hands pipx its one line as it stands")
+    return text
 
 
 def snapshot(root: pathlib.Path, checkouts: dict[str, pathlib.Path]) -> dict[pathlib.Path, tuple[int, int]]:
@@ -85,6 +97,7 @@ def serve(
     out: pathlib.Path,
     serve_args: list[str],
     seen: dict[pathlib.Path, tuple[int, int]],
+    zensical: str,
 ) -> int:
     """Runs the server in the build tree and assembles again at each change of a source, from the look `seen` on.
     Returns the server's status, 128 plus the signal's number for a server that a signal ended, or 0 after an
@@ -108,7 +121,7 @@ def serve(
     failed = None
     try:
         try:
-            server = subprocess.Popen(["pipx", "run", ZENSICAL, "serve", *serve_args], cwd=out)
+            server = subprocess.Popen(["pipx", "run", zensical, "serve", *serve_args], cwd=out)
         except FileNotFoundError as error:
             if error.filename != "pipx":
                 raise
@@ -179,6 +192,7 @@ def main(argv: list[str]) -> int:
             say(f"no checkout for {folder}: pass --checkout {folder}=<path> or name it in checkouts.toml")
         if missing:
             return 2
+        zensical = pinned(ROOT)
         # Taken ahead of the assembly, so an edit that lands while it runs differs from this look at the first round.
         seen = snapshot(ROOT, checkouts)
         problems = assemble(ROOT, checkouts, out)
@@ -189,7 +203,7 @@ def main(argv: list[str]) -> int:
         say(problem)
     if problems:
         return 1
-    return serve(checkouts, out, argv[cut + 1 :], seen)
+    return serve(checkouts, out, argv[cut + 1 :], seen, zensical)
 
 
 if __name__ == "__main__":

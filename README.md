@@ -51,8 +51,10 @@ that file, and into no other. It writes nothing, removes nothing and prints one 
 
 ## The preview
 
-A local run needs Python 3.11 or later and `pipx`, which runs the pinned version of Zensical. One command assembles the
-tree from local checkouts of the three products and serves it:
+A local run needs Python 3.11 or later and `pipx`, which runs the pinned version of Zensical. `requirements.txt` at this
+repository's root holds that pin and nothing else, one line without a comment, since the preview and the build command
+below hand the file's text to `pipx run`. It is the pin's one place: the workflow installs from it. One command
+assembles the tree from local checkouts of the three products and serves it:
 
 ```sh
 python3 scripts/preview.py --checkout router=../phoebis --checkout companion=../phoebis-companion --checkout proxy=../phoebis-proxy
@@ -76,7 +78,7 @@ The build that a pull request gets is the strict one, with the two checks behind
 
 ```sh
 python3 scripts/assemble.py --checkout router=../phoebis --checkout companion=../phoebis-companion --checkout proxy=../phoebis-proxy
-(cd build && pipx run zensical==0.0.62 build --clean --strict)
+(cd build && pipx run "$(cat ../requirements.txt)" build --clean --strict)
 python3 scripts/check-site.py links
 python3 scripts/check-site.py prose build/docs README.md ../phoebis/README.md ../phoebis-companion/README.md ../phoebis-proxy/README.md
 ```

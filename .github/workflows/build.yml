@@ -142,9 +142,9 @@ jobs:
       - run: scripts/tests/green-commits.sh
       - run: scripts/tests/preview.sh
       - run: python3 scripts/assemble.py --checkout router=checkouts/router --checkout companion=checkouts/companion --checkout proxy=checkouts/proxy
-      # Pinned to the version the site is written and checked against. A newer Zensical may warn on syntax this one
-      # accepts, and a warning fails the build below.
-      - run: pip install zensical==0.0.62
+      # requirements.txt holds the pin, the version the site is written and checked against. A newer Zensical may warn
+      # on syntax this one accepts, and a warning fails the build below.
+      - run: pip install -r requirements.txt
       - run: zensical build --clean --strict
         working-directory: build
       - run: python3 scripts/check-site.py links

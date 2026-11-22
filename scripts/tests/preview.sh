@@ -106,10 +106,12 @@ exec sleep 600
 PIPX
 chmod +x "$tmp/bin/pipx"
 
-# A site of one product whose assembly refuses nothing, so the command goes on to its server.
+# A site of one product whose assembly refuses nothing and whose requirements.txt holds one pin, so the command goes on
+# to its server.
 site() {
   repository "$1/repo"
   mkdir -p "$1/repo/docs" "$1/alpha/docs/site" "$1/record"
+  printf 'zensical==0.0.0\n' > "$1/repo/requirements.txt"
   printf '[project]\nsite_name = "Manual"\n' > "$1/repo/zensical.toml"
   printf '[[source]]\nfolder = "alpha"\nrepository = "example/alpha"\ntitle = "Alpha"\n' > "$1/repo/sources.toml"
   echo '# Start' > "$1/repo/docs/index.md"
@@ -185,5 +187,50 @@ status=0
 wait "$started" || status=$?
 started=
 [ "$status" = 143 ] || fail "a server that SIGTERM ended gave the command the status $status, where 143 was due"
+
+# The build installs the Zensical that requirements.txt names, so a preview that keeps a version of its own serves the
+# pages with another one. The stand-in writes each argument on a line of its own, so a pin handed on with the file's
+# line feed puts an empty line into the record.
+site "$tmp/pin"
+printf 'example-pin==1.2.3\n' > "$tmp/pin/repo/requirements.txt"
+preview "$tmp/pin"
+wait_until [ -s "$tmp/pin/record/pid" ] || fail "the preview started no server: $(cat "$tmp/pin/out")"
+[ "$(cat "$tmp/pin/record/args")" = $'run\nexample-pin==1.2.3\nserve' ] \
+  || fail "pipx was handed $(paste -s -d ' ' "$tmp/pin/record/args"), where run example-pin==1.2.3 serve was due"
+kill -TERM "$started"
+wait_until ended "$started" || fail "a SIGTERM did not end the preview of a handed pin within ten seconds"
+started=
+
+# A case of a refused requirements.txt starts the command through preview, so a command that serves all the same cannot
+# hold the script.
+refused() {
+  wait_until ended "$started" || fail "a preview with $2 kept running"
+  status=0
+  wait "$started" || status=$?
+  started=
+  [ "$status" != 0 ] || fail "a preview with $2 passed"
+  [ "$(wc -l < "$1/out")" = 1 ] || fail "a preview with $2 printed other than one line: $(cat "$1/out")"
+  grep -qF 'requirements.txt' "$1/out" || fail "the line for $2 names no file: $(cat "$1/out")"
+  [ ! -e "$1/record/pid" ] || fail "a preview with $2 started a server"
+}
+
+# The workflow's pip install -r takes a requirements.txt with no requirement or with two, while the preview hands the
+# file's text to pipx run as one specification. A reader that hands on what the file holds runs pipx with an empty
+# specification or with two pins as one. The second file holds no comment, so only a count of its lines refuses it.
+site "$tmp/empty-pin"
+: > "$tmp/empty-pin/repo/requirements.txt"
+preview "$tmp/empty-pin"
+refused "$tmp/empty-pin" "an empty requirements.txt"
+site "$tmp/two-pins"
+printf 'zensical==0.0.0\nexample-pin==1.2.3\n' > "$tmp/two-pins/repo/requirements.txt"
+preview "$tmp/two-pins"
+refused "$tmp/two-pins" "two pins in its requirements.txt"
+
+# pip install -r drops a comment, while pipx run takes the whole line as the specification. So a reader that counts the
+# lines alone starts a server on a specification that no build installs.
+site "$tmp/comment"
+printf 'example-pin==1.2.3 # the pin\n' > "$tmp/comment/repo/requirements.txt"
+preview "$tmp/comment"
+refused "$tmp/comment" "a comment in its requirements.txt"
 
 echo "preview: ok"
