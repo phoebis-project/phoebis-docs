@@ -3,15 +3,13 @@
 # relative path in that file is read from the file's folder. It also has to see an edit at each depth of a checkout's
 # pages. A run with three flags from the repository's root that edits a page at the top level shows none of the
 # three. The script finds its repository from its own path, so each case works on a copy of it inside a throwaway
-# repository. The cases of a checkout's path and of the look at its pages import the copy and call one of its
+# repository. The cases of a flag, of a relative path and of a page one folder down import the copy and call one of its
 # functions, and each other case runs the command. A case that starts a server puts a stand-in for pipx first on the
 # PATH, which starts no Zensical.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
-# A case that runs the command with another PATH reaches the interpreter by its path.
-python=$(command -v python3)
 started=
 # A case that fails leaves its preview and the stand-in's sleep behind, which would outlive the build's step. The
 # cleanup ends the process group of the preview in flight and reads no process id from a file: an id that a finished
@@ -21,6 +19,8 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
+# A case that runs the command with another PATH reaches the interpreter by its path.
+python=$(command -v python3)
 fail() { echo "FAIL $1" >&2; exit 1; }
 
 # The preview imports the assembly, so a throwaway repository takes both scripts.
@@ -117,7 +117,9 @@ site() {
   printf 'nav = [ "index.md" ]\n' > "$1/alpha/docs/nav.toml"
 }
 # setsid makes the command the leader of a process group of its own, so the cleanup can end the command and its server
-# together and reach no other process. A case that saw its preview end sets started to nothing again.
+# together and reach no other process. The script runs without job control, so the background command leads no group
+# of its own, setsid then replaces itself with the command without a fork, and $! is the id of the command and of its
+# group. A case that saw its preview end sets started to nothing again.
 preview() {
   PIPX_RECORD="$1/record" PATH="$tmp/bin:$PATH" setsid "$python" "$1/repo/scripts/preview.py" \
     --checkout alpha="$1/alpha" > "$1/out" 2>&1 &
@@ -161,12 +163,16 @@ wait_until grep -qxF '# Alpha, edited' "$tmp/serve/repo/build/docs/alpha/index.m
   || fail "an edited page of a checkout was not assembled again within ten seconds"
 
 # kill sends SIGTERM, and a command that the signal's default action ends leaves its server on the port. The case ends
-# the preview of the case above.
+# the preview of the case above. An interrupt of the command answers 0, and an interrupt path that sets no status ends
+# the command in a traceback after both processes are gone, which the two waits cannot tell from a clean end.
 server=$(cat "$tmp/serve/record/pid")
 kill -TERM "$started"
 wait_until ended "$started" || fail "a SIGTERM did not end the preview within ten seconds"
 wait_until ended "$server" || fail "a SIGTERM ended the preview and left its server running"
+status=0
+wait "$started" || status=$?
 started=
+[ "$status" = 0 ] || fail "a SIGTERM gave the preview the status $status, where 0 was due"
 
 # A server that a signal ended has a negative return code, and a command that answers it raw gives the shell 241 for
 # SIGTERM, where a shell reads 128 plus the signal's number, 143, as the end by that signal.
