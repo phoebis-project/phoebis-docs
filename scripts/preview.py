@@ -80,10 +80,6 @@ def stopped(error: Exception) -> str:
     return f"not assembled: {type(error).__name__}: {error}"
 
 
-def interrupt(signum, frame):
-    raise KeyboardInterrupt
-
-
 def serve(
     checkouts: dict[str, pathlib.Path],
     out: pathlib.Path,
@@ -91,13 +87,36 @@ def serve(
     seen: dict[pathlib.Path, tuple[int, int]],
 ) -> int:
     """Runs the server in the build tree and assembles again at each change of a source, from the look `seen` on.
-    Returns the server's status, or 0 after an interrupt, which ends the server too."""
+    Returns the server's status, 128 plus the signal's number for a server that a signal ended, or 0 after an
+    interrupt of this command, which ends the server too. A server that outlives its kill gives 1."""
+    armed = False
+    noted = []
+
+    def end(signum, frame):
+        # A signal raises only while the server has its name and is not being ended. One that raised between the
+        # launch and the assignment would leave the server on its port, and one that raised inside the wait of the
+        # `finally` would skip the kill.
+        if armed:
+            raise KeyboardInterrupt
+        noted.append(signum)
+
     # `kill` sends SIGTERM, whose default action would end this command and leave the server on its port.
-    signal.signal(signal.SIGTERM, interrupt)
+    signal.signal(signal.SIGTERM, end)
+    if signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+        signal.signal(signal.SIGINT, end)
     server = None
     failed = None
     try:
-        server = subprocess.Popen(["pipx", "run", ZENSICAL, "serve", *serve_args], cwd=out)
+        try:
+            server = subprocess.Popen(["pipx", "run", ZENSICAL, "serve", *serve_args], cwd=out)
+        except FileNotFoundError as error:
+            if error.filename != "pipx":
+                raise
+            say('pipx is not on the PATH, and the preview runs Zensical through it (README.md, "The preview")')
+            return 1
+        armed = True
+        if noted:
+            raise KeyboardInterrupt
         while server.poll() is None:
             time.sleep(1)
             try:
@@ -116,17 +135,25 @@ def serve(
             seen, failed = now, None
             for line in lines:
                 say(line)
-        return server.returncode
+        code = server.returncode
+        status = 128 - code if code < 0 else code
     except KeyboardInterrupt:
-        return 0
+        status = 0
     finally:
+        armed = False
         if server is not None and server.poll() is None:
             server.terminate()
             try:
                 server.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 server.kill()
-                server.wait()
+                try:
+                    server.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    # The signals are held back here, so a wait with no end would leave the operator no way out.
+                    say(f"the server (process {server.pid}) did not end within ten seconds of its kill")
+                    status = 1
+    return status
 
 
 def main(argv: list[str]) -> int:
