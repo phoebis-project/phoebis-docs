@@ -10,6 +10,8 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+# A case that runs the script with another PATH reaches the interpreter by its path.
+python=$(command -v python3)
 fail() { echo "FAIL $1" >&2; exit 1; }
 
 repo="$tmp/repo"
@@ -312,6 +314,19 @@ logged example/beta "$cb"
 fresh "a refused value of the interval"
 pick --wait 30 --every 0
 ends 2 ""
+
+# A call of gh with no handler for a missing program ends a host without the GitHub CLI in the traceback of
+# FileNotFoundError, where the log owes one line that names gh and carries the ::error:: prefix. An empty folder is the
+# PATH, so neither the host's gh nor the case's is found.
+fresh "a host without gh"
+mkdir "$tmp/empty"
+status=0
+out=$(PATH="$tmp/empty" "$python" "$repo/scripts/green-commits.py" 2> "$tmp/err") || status=$?
+err=$(cat "$tmp/err")
+ends 1 ""
+[ "$(printf '%s\n' "$err" | wc -l)" = 1 ] || fail "$name: the error output holds more than one line: $err"
+grep -q '^::error::' <<< "$err" || fail "$name: the line carries no ::error:: prefix: $err"
+logged gh
 
 # The script reads sources.toml as the assembly and the preview do, and a deploy's log is where its refusal has to
 # show. A script that lets the reader's refusal through ends in a traceback, where the log owes one line that names the
