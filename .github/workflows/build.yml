@@ -159,6 +159,6 @@ jobs:
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           # The name carries the run's attempt, and deploy.yml asks for the same name. So the deploy job of an attempt
-          # publishes no site that an earlier attempt built, though the run still holds the artifact of that attempt.
+          # publishes no site that an earlier attempt built, where the run still holds the artifact of that attempt.
           name: github-pages-${{ github.run_attempt }}
           path: build/site
