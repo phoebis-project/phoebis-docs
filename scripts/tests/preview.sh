@@ -19,12 +19,14 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
-# A case that runs the command with another PATH reaches the interpreter by its path.
-python=$(command -v python3)
+# A case that runs the command with another PATH reaches the interpreter by its path. The interpreter names that path
+# itself, since the first python3 on the PATH can be a version manager's launcher, which needs that PATH to run Python.
+python=$(python3 -c 'import sys; print(sys.executable)')
 fail() { echo "FAIL $1" >&2; exit 1; }
-# ended reads an empty state as an ended process, so on a host without ps each wait for an end answers at once. A case
-# of a SIGTERM then passes with no handler in the command, and the wait behind it can block on the stand-in's sleep.
-command -v ps > /dev/null || fail "the host has no ps, which the cases read to see a preview end"
+# ended reads an empty answer as an ended process, so with a ps that answers nothing each wait for an end returns at
+# once, and the case of a SIGTERM then passes for a command that answers 0 and leaves its server running.
+[ -n "$(ps -o state= -p $$ 2>/dev/null)" ] \
+  || fail "the host's ps answers no state of a process, which the cases read to see a preview end"
 
 # The preview imports the assembly, so a throwaway repository takes both scripts.
 repository() {

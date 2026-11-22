@@ -10,8 +10,9 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-# A case that runs the script with another PATH reaches the interpreter by its path.
-python=$(command -v python3)
+# A case that runs the script with another PATH reaches the interpreter by its path. The interpreter names that path
+# itself, since the first python3 on the PATH can be a version manager's launcher, which needs that PATH to run Python.
+python=$(python3 -c 'import sys; print(sys.executable)')
 fail() { echo "FAIL $1" >&2; exit 1; }
 
 repo="$tmp/repo"
