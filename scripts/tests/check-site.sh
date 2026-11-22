@@ -136,6 +136,39 @@ echo '<a href="https://[x">x</a>' > "$tmp/malformed-site/index.html"
 out=$(python3 "$check" links "$tmp/malformed-site" 2>&1) || fail "a link to a malformed address was refused: $out"
 [ -z "$out" ] || fail "links printed a line for a link to a malformed address: $out"
 
+# An inline style reaches a browser as a linked sheet does, and neither an href nor a .css file holds its @import. A
+# host's name reads the same in each case of its letters.
+mkdir -p "$tmp/inline-style-site"
+echo '<style>@import url("https://Fonts.GoogleAPIs.com/css?family=Inter");</style>' > "$tmp/inline-style-site/index.html"
+out=$(python3 "$check" links "$tmp/inline-style-site" 2>&1) \
+  && fail "a page whose inline style imports from a font host of Google passed"
+echo "$out" | grep -qF 'index.html: fonts.googleapis.com' \
+  || fail "links did not report the font host of an inline style: $out"
+
+# A script reaches a browser from a file of its own, which neither a page's href nor a sheet's url() holds. So the
+# search reads each file of the site, and the pages and the sheets alone are not enough.
+mkdir -p "$tmp/script-site"
+echo '<p>ok</p>' > "$tmp/script-site/index.html"
+echo 'load("https://fonts.gstatic.com/s/inter.woff2");' > "$tmp/script-site/app.js"
+out=$(python3 "$check" links "$tmp/script-site" 2>&1) \
+  && fail "a script file that names a font host of Google passed"
+echo "$out" | grep -qF 'app.js: fonts.gstatic.com' \
+  || fail "links did not report the font host of a script file: $out"
+
+# A browser reads a scheme in each case of its letters, and a value that starts with `//` takes the page's scheme and
+# names a host of its own.
+mkdir -p "$tmp/other-host-site"
+echo '<a href="HTTPS://example.com/">ok</a><a href="//example.com/x">ok</a>' > "$tmp/other-host-site/index.html"
+out=$(python3 "$check" links "$tmp/other-host-site" 2>&1) \
+  || fail "a link to another host was read as a link into the site: $out"
+
+# A mail address carries a scheme and no host, and it names no file of the site. A reader that tests the host alone
+# takes it for a link into the site.
+mkdir -p "$tmp/mail-site"
+echo '<a href="mailto:reader@example.com">write</a>' > "$tmp/mail-site/index.html"
+out=$(python3 "$check" links "$tmp/mail-site" 2>&1) \
+  || fail "a mail address was read as a link into the site: $out"
+
 # The prose rules: each rule fires outside a code span and a fenced block and stays quiet inside them, a fence
 # closes only on its own character and length, and a span wrapped across two lines is code on both.
 mkdir -p "$tmp/prose"

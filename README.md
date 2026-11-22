@@ -84,12 +84,15 @@ python3 scripts/check-site.py prose build/docs README.md ../phoebis/README.md ..
 ```
 
 `links` walks the built site for an internal link or an image that resolves to nothing, for a fragment that names no
-heading or anchor on the page it lands on, for a `url()` or an `@import` of a style sheet that resolves to nothing and
-for a link of a page or a style sheet to one of Google's two font hosts. `prose` holds each page of the build tree and
-the four READMEs to the site's writing rules, which apply to the pages of each product: no bare `api_key` outside a code
-span, no em-dash and no en-dash, no line over 120 columns outside a table or a fenced code block, no semicolon on a
-prose line, and no word from its list of words a reference page does not use. With a path, `prose` reads that file or
-walks that folder.
+heading or anchor on the page it lands on and for a `url()` or an `@import` of a style sheet that resolves to nothing.
+It reads a value's scheme and host as a browser does, so a scheme in upper case and an address that starts with `//`
+count as another host's. It also searches each file of the built site for the names of Google's two font hosts, whatever
+the case of their letters, and reports a file that holds one, in an inline style, a link, a page's own text or a script.
+So a page that describes this rule refers to the two hosts and spells neither name. `prose` holds each page of the build
+tree and the four READMEs to the site's writing rules, which apply to the pages of each product: no bare `api_key`
+outside a code span, no em-dash and no en-dash, no line over 120 columns outside a table or a fenced code block, no
+semicolon on a prose line, and no word from its list of words a reference page does not use. With a path, `prose` reads
+that file or walks that folder.
 
 A second build tree, such as one for a strict build while the preview serves `build/`, comes from two arguments:
 `scripts/assemble.py --out DIR` writes into that directory under the same rule as `build/`, and `scripts/check-site.py
@@ -181,8 +184,8 @@ release:
 
 These twelve are the faces that the theme's own request names. Each folder holds the license text of its release,
 `LICENSE.txt` for Inter and `OFL.txt` for JetBrains Mono, and the site serves it beside the files. `links` fails on a
-link of a page or a style sheet to one of Google's two font hosts and on a `url()` of a style sheet that resolves to no
-file of the site. So a build does not pass with the setting lost or with a font file that the style sheet misnames.
+built file that names one of Google's two font hosts and on a `url()` of a style sheet that resolves to no file of the
+site. So a build does not pass with the setting lost or with a font file that the style sheet misnames.
 
 To take a new version of a face, replace the files of its folder with the files of that release, the license text among
 them, and change its row above.

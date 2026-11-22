@@ -3,9 +3,10 @@
 
 `links` walks the built site for an internal link or image that resolves to nothing, for a link whose fragment names no
 heading or anchor on the page it lands on, and for a style sheet's `url()` or quoted `@import` that resolves to nothing.
-It also reports each link of a page or a style sheet to one of Google's two font hosts. A root-relative link carries the
-path that `site_url` in the repository's zensical.toml publishes the site under. `prose` holds the mechanical content
-rules of the site's prose, over each file it is given and each Markdown file at each depth of a folder it is given.
+It also reports each file of the site that names one of Google's two font hosts, in a link or elsewhere in its text. A
+root-relative link carries the path that `site_url` in the repository's zensical.toml publishes the site under. `prose`
+holds the mechanical content rules of the site's prose, over each file it is given and each Markdown file at each depth
+of a folder it is given.
 """
 import functools
 import html.parser
@@ -19,10 +20,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 SITE = BUILD / "site"
 
-# Another host's links are not this script's business, in a page and in a style sheet's `url()` and `@import` alike, and
-# each other value of a style sheet has to resolve to a file of the site as a page's link does. `link_kind` tests a
-# value for one of Google's font hosts in front of this skip, and the check reports a value at either host.
-SKIPPED = ("http:", "https:", "mailto:", "javascript:", "data:", "tel:")
+# The schemes of a value that names no file of this site. A value that names a host is another host's as well,
+# whatever its scheme, and `link_kind` tests a value for one of Google's font hosts ahead of both.
+SKIPPED = frozenset({"data", "http", "https", "javascript", "mailto", "tel"})
 # The theme asks these two hosts for its faces, which hands Google each reader's address, unless `font = false` in
 # zensical.toml switches the request off. The strict build passes a lost or misspelled setting, so the arm reports a
 # value at either host where it skips each other host.
@@ -53,21 +53,18 @@ def site_prefix(config: pathlib.Path) -> list[str] | None:
     return [segment for segment in path.split("/") if segment]
 
 
-def names_font_host(raw):
-    try:
-        return urllib.parse.urlsplit(raw).hostname in FONT_HOSTS
-    except ValueError:
-        # A malformed address, such as one with an unclosed `[`, names no host. The skip passes another host's malformed
-        # link, so a refusal here must not end the walk.
-        return False
-
-
 def link_kind(raw):
     """The kind of a page's or a style sheet's value: "font" at a font host of Google, None for another host's value
-    that the check skips and "site" for one that has to resolve."""
-    if names_font_host(raw):
+    that the check skips and "site" for one that has to resolve. The scheme and the host are read as a browser reads
+    them, so a scheme in upper case and a value that starts with `//` are another host's."""
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        # A malformed address, such as one with an unclosed `[`, names no font host and no file of the site.
+        return None
+    if parts.hostname in FONT_HOSTS:
         return "font"
-    if raw.startswith(SKIPPED):
+    if parts.netloc or parts.scheme in SKIPPED:
         return None
     return "site"
 
@@ -158,6 +155,7 @@ def check_links(site, prefix):
         print(f"no pages under {site}. Build the site first.")
         return 1
     findings = 0
+    named = set()
 
     def report(path, raw, reason):
         nonlocal findings
@@ -168,6 +166,7 @@ def check_links(site, prefix):
         parser = parsed(page)
         for raw in parser.font_hosts:
             report(page, raw, "names a font host of Google")
+            named.add(page)
         for raw in parser.found:
             if not resolves(site, prefix, page, raw):
                 report(page, raw, "resolves to nothing")
@@ -182,8 +181,19 @@ def check_links(site, prefix):
             kind = link_kind(raw)
             if kind == "font":
                 report(sheet, raw, "names a font host of Google")
+                named.add(sheet)
             elif kind == "site" and not resolves(site, prefix, sheet, raw):
                 report(sheet, raw, "resolves to nothing")
+    # A browser also reads an inline style, a script's output and a `style` attribute, and the two reads above know a
+    # page's `href` and `src` and a sheet's `url()` and `@import` alone. So each file they reported no font host for
+    # is searched for the two names as text. `bytes.lower` folds ASCII letters alone, as a host name does.
+    for file in sorted(path for path in site.rglob("*") if path.is_file()):
+        if file in named:
+            continue
+        text = file.read_bytes().lower()
+        for host in FONT_HOSTS:
+            if host.encode() in text:
+                report(file, host, "is a font host of Google, named in the file")
     return 1 if findings else 0
 
 
