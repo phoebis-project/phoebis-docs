@@ -95,10 +95,11 @@ def held(repository: str, commit: str) -> bool:
     return status in HELD
 
 
-def weigh(repository: str, runs: list[dict]) -> tuple[dict | None, bool, dict | None]:
+def weigh(repository: str, runs: list[dict], waits: bool) -> tuple[dict | None, bool, dict | None]:
     """The newest run that a push to main started, whether a run in progress stands above the green run, and the newest
     run that passes the four tests, either run None where the runs hold none. The tests run in their order, so a commit
-    is compared with main for a complete green run alone."""
+    is compared with main for a complete green run alone. Where `waits` holds, the caller reads the product again, so
+    the walk ends at the first run in progress and compares no commit below it."""
     newest, running = None, False
     # An answer holds for this round of reads alone, so a rewrite of main during the wait shows in the next round.
     dropped: set[str] = set()
@@ -108,6 +109,8 @@ def weigh(repository: str, runs: list[dict]) -> tuple[dict | None, bool, dict | 
         if newest is None:
             newest = run
         if run["status"] != "completed":
+            if waits:
+                return newest, True, None
             running = True
         elif run["conclusion"] == "success" and run["head_sha"] not in dropped:
             if held(repository, run["head_sha"]):
@@ -227,8 +230,9 @@ def main(argv: list[str]) -> int:
             waiting, taken = [], []
             for source in pending:
                 runs = read_runs(source.repository)
-                newest, running, green = weigh(source.repository, runs)
-                if running and slept < args.wait:
+                waits = slept < args.wait
+                newest, running, green = weigh(source.repository, runs, waits)
+                if running and waits:
                     waiting.append(source)
                     continue
                 commits[source.folder] = settle(

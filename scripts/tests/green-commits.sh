@@ -235,12 +235,12 @@ ends 2 ""
 # publishes the commit before the pushed one, which no later deploy follows. The run ends green at the second read, so
 # this is also the case whose result is the newest run, which a selection that passes over each newest run misses. At
 # the first read the run waits for a runner and reads queued, so a selection that waits for a status of in_progress
-# alone passes over it at once.
+# alone passes over it at once. The case writes no answer for the commit below that run, so a script that compares there
+# while it waits fails.
 fresh "a run in progress that ends green within the wait"
 runs example/alpha "$(queued 101 "$c1")" "$(ended 102 push main "$c2" success)"
 runs example/alpha "$(ended 101 push main "$c1" success)" "$(ended 102 push main "$c2" success)"
 compared example/alpha "$c1" identical
-compared example/alpha "$c2" ahead
 one_green example/beta 201 "$cb"
 pick --wait 2 --every 1
 ends 0 "alpha=$c1
@@ -273,12 +273,12 @@ logged 101
 # A script that keeps a comparison's answer for its whole run reads no rewrite of main that falls into the wait, so it
 # can build a commit that main dropped in that time. Each script compares the newest green commit in both rounds, so
 # that commit turns from diverged at the first read to held at the second, and the run in progress below it keeps the
-# product waiting for that second read.
+# product waiting for that second read. The case writes no answer for the commit below that run, so a script that
+# compares there while it waits fails.
 fresh "a comparison that changes during the wait"
 runs example/alpha "$(ended 101 push main "$c1" success)" "$(running 102 "$c2")" "$(ended 103 push main "$c3" success)"
 compared example/alpha "$c1" diverged
 compared example/alpha "$c1" ahead
-compared example/alpha "$c3" ahead
 one_green example/beta 201 "$cb"
 pick --wait 1 --every 1
 ends 0 "alpha=$c1
