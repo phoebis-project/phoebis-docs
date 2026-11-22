@@ -271,7 +271,7 @@ USAGE = "usage: check-site.py links [SITE_DIR] | prose [PATH...]"
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) >= 2 and argv[1] == "links":
+    if len(argv) in (2, 3) and argv[1] == "links":
         prefix = site_prefix(ROOT / "zensical.toml")
         if prefix is None:
             return 1

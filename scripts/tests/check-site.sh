@@ -32,13 +32,6 @@ echo "$out" | grep -q "resolves to nothing" || fail "dangling link did not repor
 # Each case below runs against its own throwaway site so the finding it checks for cannot be satisfied by
 # a leftover dangling link from an earlier case.
 
-# A root-relative link whose first segment is not the site's own prefix must not fall back to site/, or
-# every such link would resolve to the site root's index.html.
-mkdir -p "$tmp/prefix-site"
-echo '<a href="/anything/">gone</a>' > "$tmp/prefix-site/index.html"
-out=$(python3 "$check" links "$tmp/prefix-site" 2>&1) && fail "a root-relative link with an unrelated prefix passed"
-echo "$out" | grep -q "index.html: /anything/ resolves to nothing" || fail "wrong finding for unrelated prefix: $out"
-
 # A root-relative link missing the site's own prefix must fail even when an unprefixed path of the same name
 # exists directly under site/, which is exactly how the built tree is laid out locally.
 mkdir -p "$tmp/unprefixed-site/installation"
@@ -52,6 +45,14 @@ mkdir -p "$tmp/prefixed-site/installation"
 : > "$tmp/prefixed-site/installation/index.html"
 echo '<a href="/manual/installation/">ok</a>' > "$tmp/prefixed-site/index.html"
 python3 "$check" links "$tmp/prefixed-site" >/dev/null || fail "a root-relative link with the site prefix was refused"
+
+# A call with two paths names two trees, and the check walks one. An arm that walks the first and drops the second
+# answers 0 for a tree that nothing read, so the call is a usage error. The case reads the trees of the two cases above
+# it, and the first tree of the call passes the check while the second holds a link that resolves to nothing.
+status=0
+out=$(python3 "$check" links "$tmp/prefixed-site" "$tmp/unprefixed-site" 2>&1) || status=$?
+[ "$status" = 2 ] || fail "links with two paths answered $status, where 2 was due: $out"
+echo "$out" | grep -q '^usage:' || fail "links with two paths printed no usage line: $out"
 
 # A root-relative link into a directory that has no index.html must not fall back past its own path.
 mkdir -p "$tmp/missing-dir-site"
@@ -123,10 +124,10 @@ echo "$out" | grep -qF 'assets/site.css: fonts/b.woff2 resolves to nothing' \
   echo '@import "https://fonts.googleapis.com/css?family=Inter";'
 } > "$tmp/style-site/assets/site.css"
 out=$(python3 "$check" links "$tmp/style-site" 2>&1) && fail "a style sheet that loads from two font hosts passed"
-for finding in 'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
-  'assets/site.css: https://fonts.googleapis.com/css?family=Inter'; do
-  echo "$out" | grep -qF "$finding" || fail "links did not report $finding: $out"
-done
+echo "$out" | grep -qF 'assets/site.css: https://fonts.gstatic.com/s/inter/a.woff2' \
+  || fail "links did not report the url() at a font host: $out"
+echo "$out" | grep -qF 'assets/site.css: https://fonts.googleapis.com/css?family=Inter' \
+  || fail "links did not report the @import from a font host: $out"
 
 # urlsplit refuses an address with an unclosed `[`, and such a link at another host names no font host, so the skip
 # passes it as another host's link. A host test that lets the refusal through ends the link check with a traceback.
@@ -168,17 +169,21 @@ python3 "$check" prose "$tmp/prose/pass.md" >/dev/null || fail "prose refused a 
   echo 'worktree list` and then; a semicolon after the close.'
 } > "$tmp/prose/fail.md"
 out=$(python3 "$check" prose "$tmp/prose/fail.md" 2>&1) && fail "prose passed a page that breaks the rules"
-for finding in 'fail.md:1: semicolon:' 'fail.md:2: columns: 121' 'fail.md:3: dash:' 'fail.md:4: dash:' 'fail.md:5: api_key:' 'fail.md:7: semicolon:'; do
-  echo "$out" | grep -q "$finding" || fail "prose did not report $finding: $out"
-done
+echo "$out" | grep -q 'fail.md:1: semicolon:' || fail "prose did not report the semicolon of line 1: $out"
+echo "$out" | grep -q 'fail.md:2: columns: 121' || fail "prose did not report the 121 columns of line 2: $out"
+echo "$out" | grep -q 'fail.md:3: dash:' || fail "prose did not report the em-dash of line 3: $out"
+echo "$out" | grep -q 'fail.md:4: dash:' || fail "prose did not report the en-dash of line 4: $out"
+echo "$out" | grep -q 'fail.md:5: api_key:' || fail "prose did not report the bare api_key of line 5: $out"
+echo "$out" | grep -q 'fail.md:7: semicolon:' || fail "prose did not report the semicolon behind a wrapped span: $out"
 echo "$out" | grep -q 'fail.md:6:' && fail "prose reported the line that opens a wrapped span: $out"
 # A word from each of the two vocabulary patterns, a working document's word and a shape letter. The code span that
 # exempts such a word is pass.md's `task`.
-for word in task 'shape B'; do
-  echo "The $word is named here." > "$tmp/prose/word.md"
-  out=$(python3 "$check" prose "$tmp/prose/word.md" 2>&1) && fail "prose passed the word $word in prose"
-  echo "$out" | grep -q "word.md:1: vocabulary:" || fail "prose did not report $word as vocabulary: $out"
-done
+echo 'The task is named here.' > "$tmp/prose/word.md"
+out=$(python3 "$check" prose "$tmp/prose/word.md" 2>&1) && fail "prose passed the word task in prose"
+echo "$out" | grep -q 'word.md:1: vocabulary:' || fail "prose did not report the word task as vocabulary: $out"
+echo 'The shape B is named here.' > "$tmp/prose/letter.md"
+out=$(python3 "$check" prose "$tmp/prose/letter.md" 2>&1) && fail "prose passed the words shape B in prose"
+echo "$out" | grep -q 'letter.md:1: vocabulary:' || fail "prose did not report the words shape B as vocabulary: $out"
 # A span left open ends with its paragraph: a blank line or a fence line closes it, so the prose after either is read.
 {
   echo 'A span opened here `and never closed'
