@@ -48,7 +48,7 @@ def gh(path: str) -> tuple[int, object]:
     """
     try:
         done = subprocess.run(["gh", "api", "--method", "GET", path], stdout=subprocess.PIPE)
-    # The call passes no working directory, so the missing file is gh or the interpreter of a gh script.
+    # The call passes no working directory, so the missing file is gh or the interpreter that gh names.
     except FileNotFoundError:
         raise Stop("::error::the GitHub CLI (gh) is not on the PATH, and the script reads the API through it") from None
     try:
