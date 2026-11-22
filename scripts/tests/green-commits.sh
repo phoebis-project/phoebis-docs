@@ -195,13 +195,13 @@ logged example/beta
 
 # A refused read stops each build, with --or-main too. A script that reads the refusal's body as a list of no runs, or
 # the missing list as an empty one, builds each product at main in each product's run, green and without a word of the
-# fault.
+# fault. The stop's line carries the ::error:: prefix, which makes it an annotation of the run.
 fresh "a refused read"
 refused "$(runs_path example/alpha)" 403 "Resource not accessible by integration"
 one_green example/beta 201 "$cb"
 pick --or-main
 ends 1 ""
-logged example/alpha "HTTP 403"
+logged ::error::example/alpha "HTTP 403"
 fresh "a refused read, with exit 0 and no list of runs"
 answer "$(runs_path example/alpha)" 0 "" '{"total_count":0}'
 one_green example/beta 201 "$cb"
