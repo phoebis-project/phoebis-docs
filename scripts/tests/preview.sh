@@ -79,6 +79,14 @@ out=$(python3 "$tmp/number/repo/scripts/preview.py" 2>&1) && fail "a checkouts.t
 grep -qF 'checkouts.toml' <<< "$out" || fail "the line for a value that is a number names no file: $out"
 grep -qw 'alpha' <<< "$out" || fail "the line for a value that is a number names no key: $out"
 
+# checkouts.toml goes through the reader of sources.toml. A refusal that names the other file sends the writer to look
+# for the fault in a file that holds none, while the broken checkouts.toml stays as it is.
+repository "$tmp/no-toml/repo"
+printf 'alpha =\n' > "$tmp/no-toml/repo/checkouts.toml"
+out=$(python3 "$tmp/no-toml/repo/scripts/preview.py" 2>&1) && fail "a checkouts.toml that is no TOML passed"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "a checkouts.toml that is no TOML printed more than one line: $out"
+grep -qF 'checkouts.toml' <<< "$out" || fail "the line for a checkouts.toml that is no TOML names no file: $out"
+
 # A look that stops at the top level of a checkout's docs/site/ misses an edit of a page or an image one folder down,
 # so the preview runs no assembly for it and the browser keeps the old page.
 repository "$tmp/nested/repo"
