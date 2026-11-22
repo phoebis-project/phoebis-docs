@@ -10,6 +10,7 @@ A checkout's path comes from a `--checkout FOLDER=PATH` flag or from `checkouts.
 git ignores that holds one key per folder. A flag wins over the file, and a relative path in the file is read from the
 file's folder. Each argument behind `--` goes to `zensical serve`.
 """
+import json
 import pathlib
 import signal
 import stat
@@ -18,23 +19,34 @@ import sys
 import time
 import tomllib
 
-from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, source_roots
+from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, shape, source_roots
 
 USAGE = "preview.py [--checkout FOLDER=PATH ...] [-- ZENSICAL_SERVE_ARG ...]"
 ZENSICAL = "zensical==0.0.62"
 # What a source raises while its writer is in the middle of a save: a file that is gone again, a TOML file that is
-# half written, and a sources.toml that reads but holds no whole entry yet.
-UNREAD = (OSError, ValueError, KeyError, TypeError)
+# half written, and a file that reads but holds no whole entry yet, which its reader refuses with a ValueError.
+UNREAD = (OSError, ValueError)
 
 
 def local_checkouts(root: pathlib.Path, flags: list[tuple[str, pathlib.Path]]) -> dict[str, pathlib.Path]:
     """Each product's checkout: its flag, or its key in checkouts.toml with a relative path read from that file's
-    folder."""
+    folder. A ValueError names the file, and for a value that is no path it also names the key."""
     named = {}
     file = root / "checkouts.toml"
     if file.exists():
-        with open(file, "rb") as handle:
-            named = {folder: root / path for folder, path in tomllib.load(handle).items()}
+        try:
+            with open(file, "rb") as handle:
+                data = tomllib.load(handle)
+        except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+            raise ValueError(f"checkouts.toml does not read as TOML: {error}") from error
+        for folder, path in data.items():
+            if not isinstance(path, str):
+                # The key in its quoted form, so a control character in it is escaped and the refusal stays one line.
+                raise ValueError(
+                    f"checkouts.toml: the key {json.dumps(folder, ensure_ascii=False)} holds {shape(path)}, and each"
+                    " key holds a path"
+                )
+            named[folder] = root / path
     return named | dict(flags)
 
 
@@ -132,7 +144,7 @@ def main(argv: list[str]) -> int:
     try:
         checkouts = local_checkouts(ROOT, args.checkout)
     except UNREAD as error:
-        say(f"checkouts.toml does not read as one path per folder: {error}")
+        say(str(error))
         return 2
     try:
         missing = [source.folder for source in read_sources(ROOT) if source.folder not in checkouts]

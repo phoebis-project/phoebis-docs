@@ -53,6 +53,17 @@ if checkouts["alpha"].resolve() != pathlib.Path(sys.argv[1], "alpha").resolve():
 PY
 ) || fail "${why:-the call of local_checkouts ended with a traceback}"
 
+# A value of checkouts.toml that is no path, such as a number, names no checkout. A reader that hands it on as a path
+# fails in the path join, and the line it ends with names no key, so the writer cannot tell which entry to mend. The key
+# holds a line feed, which TOML takes in a quoted key, so a refusal that prints the key as it stands runs over two
+# lines.
+repository "$tmp/number/repo"
+printf '"alpha\\nbeta" = 5\n' > "$tmp/number/repo/checkouts.toml"
+out=$(python3 "$tmp/number/repo/scripts/preview.py" 2>&1) && fail "a checkouts.toml whose value is a number passed"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "a checkouts.toml whose value is a number printed more than one line: $out"
+grep -qF 'checkouts.toml' <<< "$out" || fail "the line for a value that is a number names no file: $out"
+grep -qw 'alpha' <<< "$out" || fail "the line for a value that is a number names no key: $out"
+
 # A look that stops at the top level of a checkout's docs/site/ misses an edit of a page or an image one folder down,
 # so the preview runs no assembly for it and the browser keeps the old page.
 repository "$tmp/nested/repo"

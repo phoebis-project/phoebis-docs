@@ -213,4 +213,57 @@ echo "$out" \
   || fail "a page of the site's own docs/ beside the start page was refused without its line: $out"
 rm "$repo/docs/extra.md"
 
+# An entry of sources.toml whose key holds a number, such as a folder typed without its quotes, names no folder. A
+# reader that tests each key's presence and never the value's kind hands the number on to a path join and ends in a
+# traceback, where the run owes one line that names the file and the key.
+fresh
+cp "$repo/sources.toml" "$tmp/sources.toml"
+printf '[[source]]\nfolder = 5\nrepository = "example/alpha"\ntitle = "Alpha"\n' > "$repo/sources.toml"
+status=0
+out=$(run 2>&1) || status=$?
+cp "$tmp/sources.toml" "$repo/sources.toml"
+[ "$status" = 1 ] || fail "a sources.toml whose folder is a number exited $status, where a refusal exits 1: $out"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "a sources.toml whose folder is a number printed more than one line: $out"
+grep -qF 'sources.toml' <<< "$out" || fail "the line for a folder that is a number names no file: $out"
+grep -qw 'folder' <<< "$out" || fail "the line for a folder that is a number names no key: $out"
+
+# An entry of sources.toml that is no table, such as a folder's name where its table belongs, holds no key to read. A
+# reader that tests each key and never the entry's kind ends in a traceback, where the run owes one line that names the
+# file.
+fresh
+cp "$repo/sources.toml" "$tmp/sources.toml"
+printf 'source = ["alpha"]\n' > "$repo/sources.toml"
+status=0
+out=$(run 2>&1) || status=$?
+cp "$tmp/sources.toml" "$repo/sources.toml"
+[ "$status" = 1 ] || fail "a sources.toml whose entry is no table exited $status, where a refusal exits 1: $out"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "a sources.toml whose entry is no table printed more than one line: $out"
+grep -qF 'sources.toml' <<< "$out" || fail "the line for an entry that is no table names no file: $out"
+
+# A sources.toml in the middle of an edit holds an entry without one of its keys. A reader that indexes the entry
+# untested ends in a traceback, where the run owes one line that names the file and the key.
+fresh
+cp "$repo/sources.toml" "$tmp/sources.toml"
+printf '[[source]]\nfolder = "alpha"\nrepository = "example/alpha"\n' > "$repo/sources.toml"
+status=0
+out=$(run 2>&1) || status=$?
+cp "$tmp/sources.toml" "$repo/sources.toml"
+[ "$status" = 1 ] || fail "a sources.toml whose entry lacks its title exited $status, where a refusal exits 1: $out"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "a sources.toml whose entry lacks its title printed more than one line: $out"
+grep -qF 'sources.toml' <<< "$out" || fail "the line for an entry that lacks its title names no file: $out"
+grep -qw 'title' <<< "$out" || fail "the line for an entry that lacks its title names no key: $out"
+
+# An editor that truncates sources.toml and writes it again leaves an empty file for an instant, which is valid TOML
+# with no source list. A reader that indexes the list untested ends a running preview there with a traceback, where the
+# run owes one line that names the file.
+fresh
+cp "$repo/sources.toml" "$tmp/sources.toml"
+: > "$repo/sources.toml"
+status=0
+out=$(run 2>&1) || status=$?
+cp "$tmp/sources.toml" "$repo/sources.toml"
+[ "$status" = 1 ] || fail "an empty sources.toml exited $status, where a refusal exits 1: $out"
+[ "$(printf '%s\n' "$out" | wc -l)" = 1 ] || fail "an empty sources.toml printed more than one line: $out"
+grep -qF 'sources.toml' <<< "$out" || fail "the line for an empty sources.toml names no file: $out"
+
 echo "assemble: ok"

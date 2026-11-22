@@ -202,7 +202,12 @@ def main(argv: list[str]) -> int:
         help="the seconds between two reads of a product that waits, 10 by default",
     )
     args = parser.parse_args(argv)
-    sources = read_sources(ROOT)
+    try:
+        sources = read_sources(ROOT)
+    except ValueError as error:
+        # A sources.toml that the reader refuses is a state of the source, so it ends the script as each stop does.
+        say(f"::error::{error}")
+        return 1
     if args.own and args.own[0] not in {source.folder for source in sources}:
         parser.error(f"--own: sources.toml names no folder {args.own[0]}")
     commits = {}

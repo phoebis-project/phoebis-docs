@@ -307,4 +307,17 @@ fresh "a refused value of the interval"
 pick --wait 30 --every 0
 ends 2 ""
 
+# The script reads sources.toml as the assembly and the preview do, and a deploy's log is where its refusal has to
+# show. A script that lets the reader's refusal through ends in a traceback, where the log owes one line that names the
+# file and the key. The case writes no answer, so a script that reads a product behind the refusal fails on a stray
+# call.
+fresh "a sources.toml whose entry lacks a key"
+cp "$repo/sources.toml" "$tmp/sources.toml"
+printf '[[source]]\nfolder = "alpha"\nrepository = "example/alpha"\n' > "$repo/sources.toml"
+pick
+cp "$tmp/sources.toml" "$repo/sources.toml"
+ends 1 ""
+[ "$(printf '%s\n' "$err" | wc -l)" = 1 ] || fail "$name: the error output holds more than one line: $err"
+logged sources.toml title
+
 echo "green-commits: ok"

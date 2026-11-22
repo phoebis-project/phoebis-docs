@@ -44,6 +44,8 @@ that file, and into no other. It writes nothing, removes nothing and prints one 
   tree it copies is a symbolic link
 - a product's `docs/nav.toml` does not read as a nav of the shape above
 - a product's folder is taken by a path of this repository's own `docs/`
+- `sources.toml` does not read as TOML, holds no `source` list, or holds an entry that is no table or that holds no
+  string under `folder`, `repository` or `title`
 - the output directory holds a file and is no tree the script wrote
 - `zensical.toml` holds no `[project]` line
 

@@ -38,10 +38,27 @@ class Source(typing.NamedTuple):
 
 
 def read_sources(root: pathlib.Path) -> list[Source]:
-    """The products of sources.toml, in the file's order, which is the tabs'."""
-    with open(root / "sources.toml", "rb") as file:
-        data = tomllib.load(file)
-    return [Source(entry["folder"], entry["repository"], entry["title"]) for entry in data["source"]]
+    """The products of sources.toml, in the file's order, which is the tabs'. A ValueError names the file and the
+    reason it does not read as that list, so a run reports it with a line and no traceback."""
+    # An OSError passes on, since the file is this repository's own tracked file and a missing one is no state of a
+    # source. The traceback of the open names the file.
+    try:
+        with open(root / "sources.toml", "rb") as file:
+            data = tomllib.load(file)
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise ValueError(f"sources.toml does not read as TOML: {error}") from error
+    entries = data.get("source")
+    if not isinstance(entries, list):
+        raise ValueError("sources.toml holds no source list")
+    sources = []
+    for number, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"sources.toml: entry {number} is {shape(entry)}, and each entry is a table")
+        for key in Source._fields:
+            if not isinstance(entry.get(key), str):
+                raise ValueError(f"sources.toml: entry {number} holds no string under {key}")
+        sources.append(Source(entry["folder"], entry["repository"], entry["title"]))
+    return sources
 
 
 def folder_pair(value: str, right: str) -> tuple[str, str]:
@@ -102,7 +119,7 @@ def linked(owner: str, path: str) -> str:
 
 
 def shape(value) -> str:
-    """A TOML value's kind, for the reason a nav does not read."""
+    """A TOML value's kind, for the reason a file does not read."""
     if isinstance(value, dict):
         return "a table with one key" if len(value) == 1 else f"a table with {len(value)} keys"
     if isinstance(value, list):
@@ -111,6 +128,8 @@ def shape(value) -> str:
         return "a boolean"
     if isinstance(value, (int, float)):
         return "a number"
+    if isinstance(value, str):
+        return "a string"
     return "a date or a time"
 
 
@@ -301,7 +320,10 @@ def assemble(root: pathlib.Path, checkouts: dict[str, pathlib.Path], out: pathli
     """Writes the build tree under `out` and returns no line, or returns one line per problem and writes and removes
     nothing."""
     problems = []
-    sources = read_sources(root)
+    try:
+        sources = read_sources(root)
+    except ValueError as error:
+        return [str(error)]
     folders = {source.folder for source in sources}
     problems += [f"sources.toml names no folder {folder}" for folder in checkouts if folder not in folders]
     problems += [
