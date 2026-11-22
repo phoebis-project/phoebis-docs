@@ -36,19 +36,19 @@ jobs:
       # a line that names the input.
       - if: inputs.product != '' && !contains(fromJSON('["companion", "proxy", "router"]'), inputs.product)
         run: |
-          echo "the product input names no folder of sources.toml"
+          echo "::error::the product input names no folder of sources.toml"
           exit 1
       # The selection would refuse a product without a commit in the same place and with another usage line about --own,
       # so this guard stops that caller in front of the token step, with a line that names the empty input.
       - if: inputs.product != '' && inputs.ref == ''
         run: |
-          echo "the ref input is empty, and a product's build needs the caller's commit"
+          echo "::error::the ref input is empty, and a product's build needs the caller's commit"
           exit 1
       # A commit without a product leaves OWN empty, so the selection would read each product at its newest green commit
       # and the build would pass without the caller's change.
       - if: inputs.product == '' && inputs.ref != ''
         run: |
-          echo "the product input is empty, and the ref input names a product's commit"
+          echo "::error::the product input is empty, and the ref input names a product's commit"
           exit 1
       - id: app
         if: env.DOCS_CREDENTIAL == 'true'
@@ -97,7 +97,7 @@ jobs:
           steps.commits.outputs.companion == '' || steps.commits.outputs.proxy == '' ||
           steps.commits.outputs.router == ''
         run: |
-          echo "the selection named no commit for a product, and an empty ref would read main"
+          echo "::error::the selection named no commit for a product, and an empty ref would read main"
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -130,7 +130,7 @@ jobs:
           while IFS='=' read -r folder commit || [ -n "$folder" ]; do
             built=$(git -C "checkouts/$folder" rev-parse HEAD)
             if [ "$commit" != main ] && [ "$built" != "$commit" ]; then
-              echo "checkouts/$folder holds $built, and the selection named $commit"
+              echo "::error::checkouts/$folder holds $built, and the selection named $commit"
               exit 1
             fi
           done < "$RUNNER_TEMP/commits"
