@@ -46,7 +46,11 @@ def gh(path: str) -> tuple[int, object]:
     gh writes the body of a refused read to its standard output too, which carries GitHub's status and message. Its
     error output stays the script's own, so the line of gh reaches the log as gh writes it.
     """
-    done = subprocess.run(["gh", "api", "--method", "GET", path], stdout=subprocess.PIPE)
+    try:
+        done = subprocess.run(["gh", "api", "--method", "GET", path], stdout=subprocess.PIPE)
+    # The call passes no working directory, so this error can only mean that the program is missing.
+    except FileNotFoundError:
+        raise Stop("::error::the GitHub CLI (gh) is not on the PATH, and the script reads the API through it") from None
     try:
         return done.returncode, json.loads(done.stdout)
     except ValueError:
@@ -184,6 +188,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--own",
         type=own_pair,
+        action="append",
         metavar="FOLDER=COMMIT",
         help="the caller's product, read at its own commit",
     )
@@ -205,20 +210,23 @@ def main(argv: list[str]) -> int:
         help="the seconds between two reads of a product that waits, 10 by default",
     )
     args = parser.parse_args(argv)
+    if args.own and len(args.own) > 1:
+        parser.error("--own: a run hands over one product, its own")
+    own = args.own[0] if args.own else None
     try:
         sources = read_sources(ROOT)
     except ValueError as error:
         # A sources.toml that the reader refuses is a state of the source, so it ends the script as each stop does.
         say(f"::error::{error}")
         return 1
-    if args.own and args.own[0] not in {source.folder for source in sources}:
-        parser.error(f"--own: sources.toml names no folder {args.own[0]}")
+    if own and own[0] not in {source.folder for source in sources}:
+        parser.error(f"--own: sources.toml names no folder {own[0]}")
     commits = {}
     pending = []
     for source in sources:
-        if args.own and source.folder == args.own[0]:
-            commits[source.folder] = args.own[1]
-            say(f"{source.folder}: {args.own[1]}, the caller's commit")
+        if own and source.folder == own[0]:
+            commits[source.folder] = own[1]
+            say(f"{source.folder}: {own[1]}, the caller's commit")
         else:
             pending.append(source)
     slept = 0

@@ -230,6 +230,12 @@ ends 2 ""
 fresh "the caller's commit as the branch name main"
 pick --own "alpha=main"
 ends 2 ""
+# A run builds one product of its own. The later of two --own arguments would replace the earlier, and the earlier
+# product would be read at its newest green commit without a line. The case writes no answer, so a script that takes
+# either value and reads fails by its exit status.
+fresh "a second product handed as the caller's"
+pick --own "alpha=$c1" --own "beta=$c2"
+ends 2 ""
 
 # Right after a push the newest run is still in progress, and a selection that reads once and counts that run as red
 # publishes the commit before the pushed one, which no later deploy follows. The run ends green at the second read, so
