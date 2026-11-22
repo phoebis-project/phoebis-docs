@@ -41,3 +41,6 @@ jobs:
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
         id: deployment
+        with:
+          # The artifact of this attempt, under the name that build.yml gives it.
+          artifact_name: github-pages-${{ github.run_attempt }}

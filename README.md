@@ -148,6 +148,12 @@ A run that failed for a reason outside its commit stays red until someone starts
 that links to a page which another product's newest green commit does not hold yet: once that product's run is green,
 start the failed run again, and its last job starts the deploy.
 
+A `Deploy` run that failed can be started again from its page. The build names the site's artifact after the run's
+attempt, `github-pages-<attempt>`, and the job `deploy` asks for the artifact of its own attempt, so no attempt
+publishes the site that an earlier attempt built. A new attempt runs the workflows of the run's own commit, so a run of
+a commit that does not name its artifact after the attempt gets no new attempt, and a new run from `main` takes its
+place.
+
 ## Links between products
 
 A page links to a page of another product with a relative path through the built tree, such as
