@@ -50,7 +50,7 @@ def gh(path: str) -> tuple[int, object]:
         done = subprocess.run(["gh", "api", "--method", "GET", path], stdout=subprocess.PIPE)
     # The call passes no working directory, so the missing file is gh or the interpreter that gh names.
     except FileNotFoundError:
-        raise Stop("::error::the GitHub CLI (gh) is not on the PATH, and the script reads the API through it") from None
+        raise Stop("the GitHub CLI (gh) is not on the PATH, and the script reads the API through it") from None
     try:
         return done.returncode, json.loads(done.stdout)
     except ValueError:
@@ -58,7 +58,7 @@ def gh(path: str) -> tuple[int, object]:
 
 
 def unreadable(repository: str, path: str, code: int) -> Stop:
-    return Stop(f"::error::{repository}: GET {path} gave no answer the script can read (gh exit {code})")
+    return Stop(f"{repository}: GET {path} gave no answer the script can read (gh exit {code})")
 
 
 def failed(repository: str, path: str, code: int, body: object) -> Stop:
@@ -66,7 +66,7 @@ def failed(repository: str, path: str, code: int, body: object) -> Stop:
     of GitHub's answer, and a read that brought no such body, as after a lost connection, gets the line of an answer the
     script cannot read."""
     if isinstance(body, dict) and "status" in body and "message" in body:
-        return Stop(f"::error::{repository}: GET {path} failed with HTTP {body['status']}: {body['message']}")
+        return Stop(f"{repository}: GET {path} failed with HTTP {body['status']}: {body['message']}")
     return unreadable(repository, path, code)
 
 
@@ -100,11 +100,11 @@ def held(repository: str, commit: str) -> bool:
 
 
 def weigh(repository: str, runs: list[dict], waits: bool) -> tuple[dict | None, bool, dict | None]:
-    """The newest run that a push to main started, whether a run in progress stands above the green run, and the newest
-    run that passes the four tests, either run None where the runs hold none. The tests run in their order, so a commit
-    is compared with main for a complete green run alone. Where `waits` holds, the caller reads the product again, so
-    the walk ends at the first run in progress and compares no commit below it."""
-    newest, running = None, False
+    """The newest run that a push to main started, whether the walk stopped at a run in progress, which `waits` allows,
+    and the newest run that passes the four tests, either run None where the runs hold none. The tests run in their
+    order, so a commit is compared with main for a complete green run alone. Where `waits` holds, the caller reads the
+    product again, so the walk ends at the first run in progress and compares no commit below it."""
+    newest = None
     # An answer holds for this round of reads alone, so a rewrite of main during the wait shows in the next round.
     dropped: set[str] = set()
     for run in runs:
@@ -115,12 +115,11 @@ def weigh(repository: str, runs: list[dict], waits: bool) -> tuple[dict | None, 
         if run["status"] != "completed":
             if waits:
                 return newest, True, None
-            running = True
         elif run["conclusion"] == "success" and run["head_sha"] not in dropped:
             if held(repository, run["head_sha"]):
-                return newest, running, run
+                return newest, False, run
             dropped.add(run["head_sha"])
-    return newest, running, None
+    return newest, False, None
 
 
 def passed_over(run: dict, slept: int) -> str:
@@ -144,7 +143,7 @@ def settle(
     if green is None:
         among = f"no green run of {WORKFLOW} on {BRANCH} among the {len(runs)} newest"
         if not or_main:
-            raise Stop(f"::error::{repository}: {among}, so the deploy stops")
+            raise Stop(f"{repository}: {among}, so the deploy stops")
         say(f"::notice::{repository}: {among}, so the build reads {BRANCH}")
         return BRANCH
     commit = green["head_sha"]
@@ -236,11 +235,11 @@ def main(argv: list[str]) -> int:
     try:
         while pending:
             waiting, taken = [], []
+            waits = slept < args.wait
             for source in pending:
                 runs = read_runs(source.repository)
-                waits = slept < args.wait
                 newest, running, green = weigh(source.repository, runs, waits)
-                if running and waits:
+                if running:
                     waiting.append(source)
                     continue
                 commits[source.folder] = settle(
@@ -256,10 +255,10 @@ def main(argv: list[str]) -> int:
         for source in before_sleep:
             commit = commits[source.folder]
             if not held(source.repository, commit):
-                raise Stop(f"::error::{source.repository}: {BRANCH} no longer holds {commit}, which the script took"
+                raise Stop(f"{source.repository}: {BRANCH} no longer holds {commit}, which the script took"
                            " before its wait, so the deploy stops")
     except Stop as stop:
-        say(str(stop))
+        say(f"::error::{stop}")
         return 1
     sys.stdout.write("".join(f"{source.folder}={commits[source.folder]}\n" for source in sources))
     return 0

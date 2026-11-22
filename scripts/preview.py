@@ -17,9 +17,8 @@ import stat
 import subprocess
 import sys
 import time
-import tomllib
 
-from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, shape, source_roots
+from assemble import BUILD, ROOT, assemble, checkout_parser, read_sources, read_toml, shape, source_roots
 
 USAGE = "preview.py [--checkout FOLDER=PATH ...] [-- ZENSICAL_SERVE_ARG ...]"
 # What a source raises while its writer is in the middle of a save: a file that is gone again, a TOML file that is
@@ -33,11 +32,7 @@ def local_checkouts(root: pathlib.Path, flags: list[tuple[str, pathlib.Path]]) -
     named = {}
     file = root / "checkouts.toml"
     if file.exists():
-        try:
-            with open(file, "rb") as handle:
-                data = tomllib.load(handle)
-        except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
-            raise ValueError(f"checkouts.toml does not read as TOML: {error}") from error
+        data = read_toml(file)
         for folder, path in data.items():
             if not isinstance(path, str):
                 # The key in its quoted form, so a control character in it is escaped and the refusal stays one line.

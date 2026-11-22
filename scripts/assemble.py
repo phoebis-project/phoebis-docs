@@ -37,16 +37,21 @@ class Source(typing.NamedTuple):
     title: str
 
 
+def read_toml(path: pathlib.Path) -> dict:
+    """The table of a TOML file. A ValueError names the file where its bytes do not read as TOML."""
+    try:
+        with open(path, "rb") as file:
+            return tomllib.load(file)
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise ValueError(f"{path.name} does not read as TOML: {error}") from error
+
+
 def read_sources(root: pathlib.Path) -> list[Source]:
     """The products of sources.toml, in the file's order, which is the tabs'. A ValueError names the file and the
     reason it does not read as that list, so a run reports it with a line and no traceback."""
     # An OSError passes on, since the file is this repository's own tracked file and a missing one is no state of a
     # source. The traceback of the open names the file.
-    try:
-        with open(root / "sources.toml", "rb") as file:
-            data = tomllib.load(file)
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
-        raise ValueError(f"sources.toml does not read as TOML: {error}") from error
+    data = read_toml(root / "sources.toml")
     entries = data.get("source")
     if not isinstance(entries, list):
         raise ValueError("sources.toml holds no source list")
@@ -57,7 +62,7 @@ def read_sources(root: pathlib.Path) -> list[Source]:
         for key in Source._fields:
             if not isinstance(entry.get(key), str):
                 raise ValueError(f"sources.toml: entry {number} holds no string under {key}")
-        sources.append(Source(entry["folder"], entry["repository"], entry["title"]))
+        sources.append(Source._make(entry[key] for key in Source._fields))
     return sources
 
 
