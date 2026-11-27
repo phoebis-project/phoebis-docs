@@ -27,8 +27,7 @@ jobs:
     timeout-minutes: 15
     env:
       # A step's condition cannot read a secret, so the job states once whether both halves of the credential are set. A
-      # pull request from a fork gets no secret and reads with the job's own token, which reads no other private
-      # repository.
+      # pull request from a fork gets no secret and reads with the job's own token.
       DOCS_CREDENTIAL: ${{ vars.DOCS_APP_CLIENT_ID != '' && secrets.DOCS_APP_PRIVATE_KEY != '' }}
     steps:
       # The selection would refuse a product that sources.toml does not name, but behind the token step and with a usage
